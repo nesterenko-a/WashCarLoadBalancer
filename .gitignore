@@ -1,0 +1,52 @@
+# Зависимости
+node_modules/
+.pnpm-store/
+
+# Сборка
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Vite
+.vite/
+*.local
+
+# Тесты и покрытие
+coverage/
+.vitest/
+.nyc_output/
+
+# Логи
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Окружение и секреты
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Кэши инструментов
+.eslintcache
+.stylelintcache
+.turbo/
+.parcel-cache/
+
+# Экспорт симулятора (генерируемые результаты прогонов)
+*.sim-out.csv
+
+# ОС и редакторы
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
