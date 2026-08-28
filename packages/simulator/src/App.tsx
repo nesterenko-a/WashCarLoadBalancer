@@ -381,7 +381,7 @@ function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResu
                 <td style={{ textAlign: 'right', padding: 8 }}>{(m.avgRho * 100).toFixed(1)}%</td>
                 <td style={{ textAlign: 'right', padding: 8 }}>{m.cvRho.toFixed(3)}</td>
                 <td style={{ textAlign: 'right', padding: 8 }}>{m.jainFairness.toFixed(3)}</td>
-                <td style={{ textAlign: 'right', padding: 8 }}>{scores[algo].toFixed(3)}</td>
+                <td style={{ textAlign: 'right', padding: 8, ...scoreBadgeStyle(scores[algo]) }}>{scores[algo].toFixed(1)}</td>
               </tr>
             );
           })}
@@ -389,6 +389,14 @@ function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResu
       </table>
     </div>
   );
+}
+
+function scoreBadgeStyle(score: number): React.CSSProperties {
+  if (score >= 75) return { backgroundColor: '#22c55e', color: '#ffffff', borderRadius: 4, fontWeight: 'bold' };
+  if (score >= 50) return { backgroundColor: '#84cc16', color: '#1a2e05', borderRadius: 4, fontWeight: 'bold' };
+  if (score >= 30) return { backgroundColor: '#eab308', color: '#422006', borderRadius: 4, fontWeight: 'bold' };
+  if (score >= 10) return { backgroundColor: '#f97316', color: '#ffffff', borderRadius: 4, fontWeight: 'bold' };
+  return { backgroundColor: '#ef4444', color: '#ffffff', borderRadius: 4, fontWeight: 'bold' };
 }
 
 function clamp(v: number, min: number, max: number): number {
