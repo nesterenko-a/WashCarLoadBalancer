@@ -39,6 +39,7 @@ yarn-debug.log*
 
 # Экспорт симулятора (генерируемые результаты прогонов)
 *.sim-out.csv
+decisions-*.csv
 
 # ОС и редакторы
 .DS_Store
