@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симулятор распределения нагрузки</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #07111d;
+            color: #e8eef5;
+            font-family: Inter, Arial, sans-serif;
+            font-size: 14px;
+        }
+
+        button,
+        select,
+        input {
+            font: inherit;
+        }
+
+        /* =========================
+           LAYOUT
+        ========================= */
+
+        .app {
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 58px 1fr;
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 0 18px;
+            background: #0b1827;
+            border-bottom: 1px solid #203246;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 19px;
+            white-space: nowrap;
+        }
+
+        .header-controls {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select,
+        button {
+            background: #101f31;
+            color: #e8eef5;
+            border: 1px solid #33475d;
+            border-radius: 6px;
+            padding: 8px 12px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #1769d1;
+            border-color: #277ce5;
+        }
+
+        .btn-primary:hover {
+            background: #1d75e4;
+        }
+
+        .content {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 245px minmax(600px, 1fr) 300px;
+            gap: 12px;
+            padding: 10px 12px;
+        }
+
+        /* =========================
+           SIDEBAR
+        ========================= */
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .panel {
+            background: #0c1928;
+            border: 1px solid #26394e;
+            border-radius: 8px;
+            padding: 13px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 13px;
+        }
+
+        .field {
+            margin-bottom: 14px;
+        }
+
+        .field label {
+            display: block;
+            color: #aebdcb;
+            margin-bottom: 6px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .value {
+            float: right;
+            color: #fff;
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 9px 0;
+            color: #b8c6d4;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 9px 0;
+        }
+
+        .legend-car {
+            width: 24px;
+            height: 11px;
+            border-radius: 5px;
+        }
+
+        .car-road {
+            background: #3487ee;
+        }
+
+        .car-queue {
+            background: #f0a329;
+        }
+
+        .car-service {
+            background: #45b875;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            color: #aebdcb;
+        }
+
+        .metric strong {
+            color: #fff;
+        }
+
+        /* =========================
+           MAIN
+        ========================= */
+
+        .main {
+            min-width: 0;
+            min-height: 0;
+            display: grid;
+            grid-template-rows: minmax(0, 1fr) 145px;
+            gap: 10px;
+        }
+
+        .map {
+            position: relative;
+            overflow: hidden;
+            border-radius: 9px;
+            border: 1px solid #2a3d51;
+
+            background:
+                linear-gradient(30deg,
+                    transparent 48%,
+                    rgba(255,255,255,.035) 49%,
+                    rgba(255,255,255,.035) 51%,
+                    transparent 52%),
+                linear-gradient(120deg,
+                    transparent 48%,
+                    rgba(255,255,255,.025) 49%,
+                    rgba(255,255,255,.025) 51%,
+                    transparent 52%),
+                #d8dadd;
+            background-size: 120px 120px;
+        }
+
+        /* simplified factory blocks */
+
+        .building {
+            position: absolute;
+            background: #c4c7ca;
+            border: 1px solid #b2b5b8;
+            opacity: .65;
+        }
+
+        .building.b1 {
+            width: 160px;
+            height: 90px;
+            left: 35%;
+            top: 15%;
+        }
+
+        .building.b2 {
+            width: 120px;
+            height: 150px;
+            right: 8%;
+            top: 40%;
+        }
+
+        .building.b3 {
+            width: 180px;
+            height: 70px;
+            left: 10%;
+            bottom: 15%;
+        }
+
+        /* roads */
+
+        .road {
+            position: absolute;
+            background: #343b43;
+            border: 3px solid #e6e6e6;
+            box-shadow: inset 0 0 0 2px #242a30;
+        }
+
+        .road.horizontal {
+            height: 42px;
+            left: 5%;
+            right: 5%;
+            top: 51%;
+        }
+
+        .road.vertical-left {
+            width: 42px;
+            height: 47%;
+            left: 32%;
+            top: 4%;
+            transform: rotate(18deg);
+        }
+
+        .road.vertical-right {
+            width: 42px;
+            height: 50%;
+            right: 27%;
+            top: 3%;
+            transform: rotate(-18deg);
+        }
+
+        .road.bottom {
+            width: 42px;
+            height: 35%;
+            left: 45%;
+            bottom: 2%;
+            transform: rotate(-12deg);
+        }
+
+        .road::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            border-top: 2px dashed #cfd4d8;
+        }
+
+        /* =========================
+           PARKINGS
+        ========================= */
+
+        .parking {
+            position: absolute;
+            width: 155px;
+            background: rgba(245,247,248,.96);
+            border: 2px solid #77828d;
+            color: #18222d;
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 10;
+            box-shadow: 0 5px 15px rgba(0,0,0,.25);
+        }
+
+        .parking.p1 {
+            left: 4%;
+            top: 6%;
+        }
+
+        .parking.p2 {
+            right: 4%;
+            top: 7%;
+        }
+
+        .parking.p3 {
+            left: 31%;
+            bottom: 6%;
+        }
+
+        .parking-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .parking-cars {
+            display: flex;
+            gap: 7px;
+        }
+
+        /* =========================
+           WASH STATIONS
+        ========================= */
+
+        .wash {
+            position: absolute;
+            width: 255px;
+            background: rgba(10, 24, 38, .96);
+            border: 2px solid var(--wash-color);
+            border-radius: 9px;
+            overflow: hidden;
+            z-index: 20;
+            box-shadow: 0 8px 20px rgba(0,0,0,.3);
+        }
+
+        .wash.a {
+            --wash-color: #2879df;
+            left: 4%;
+            top: 39%;
+        }
+
+        .wash.b {
+            --wash-color: #39a967;
+            right: 3%;
+            top: 38%;
+        }
+
+        .wash.c {
+            --wash-color: #8650d6;
+            left: 36%;
+            bottom: 2%;
+        }
+
+        .wash-header {
+            background: var(--wash-color);
+            padding: 9px 12px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+        }
+
+        .wash-body {
+            padding: 10px;
+        }
+
+        /* posts */
+
+        .posts-title,
+        .queue-title {
+            color: #aebdcb;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        .posts {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 9px;
+        }
+
+        .post {
+            width: 42px;
+            height: 50px;
+            border: 1px solid #536476;
+            border-radius: 5px;
+            background: #111f2d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .post::before {
+            content: "";
+            width: 22px;
+            height: 35px;
+            border-radius: 5px;
+            border: 2px solid #66798c;
+        }
+
+        .post.busy::before {
+            background: var(--wash-color);
+            border-color: #fff;
+        }
+
+        .queue {
+            display: flex;
+            gap: 5px;
+            min-height: 30px;
+            margin-bottom: 10px;
+        }
+
+        .queue-car {
+            width: 28px;
+            height: 14px;
+            border-radius: 5px;
+            background: #efa329;
+            position: relative;
+        }
+
+        .queue-car::after {
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 4px;
+            left: 10px;
+            top: -4px;
+            border-radius: 2px;
+            background: #efa329;
+        }
+
+        .wash-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            border-top: 1px solid #26394e;
+            padding-top: 8px;
+            gap: 5px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .stat-label {
+            color: #8d9baa;
+            font-size: 10px;
+            margin-top: 2px;
+        }
+
+        .danger {
+            color: #ff5964;
+        }
+
+        /* =========================
+           CARS
+        ========================= */
+
+        .car {
+            position: absolute;
+            width: 30px;
+            height: 14px;
+            border-radius: 5px;
+            z-index: 15;
+        }
+
+        .car::after {
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 4px;
+            left: 10px;
+            top: -4px;
+            border-radius: 2px;
+            background: inherit;
+        }
+
+        .car.blue {
+            background: #2879df;
+        }
+
+        .car.green {
+            background: #39b56d;
+        }
+
+        .car.orange {
+            background: #efa329;
+        }
+
+        .car.red {
+            background: #e64d58;
+        }
+
+        .car.c1 { left: 20%; top: 49%; }
+        .car.c2 { left: 27%; top: 49%; }
+        .car.c3 { left: 42%; top: 49%; }
+        .car.c4 { left: 58%; top: 49%; }
+        .car.c5 { left: 74%; top: 49%; }
+
+        .distance {
+            position: absolute;
+            z-index: 5;
+            background: rgba(16, 28, 40, .9);
+            color: #fff;
+            padding: 6px 9px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .distance.d1 {
+            left: 22%;
+            top: 27%;
+        }
+
+        .distance.d2 {
+            right: 21%;
+            top: 27%;
+        }
+
+        .distance.d3 {
+            left: 53%;
+            bottom: 24%;
+        }
+
+        /* =========================
+           TABLE
+        ========================= */
+
+        .table-panel {
+            overflow: hidden;
+            border-radius: 8px;
+            border: 1px solid #26394e;
+            background: #0c1928;
+        }
+
+        .table-title {
+            padding: 8px 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #26394e;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            padding: 6px 8px;
+            text-align: center;
+            border-bottom: 1px solid #1e3043;
+        }
+
+        th {
+            color: #8495a6;
+            font-weight: 500;
+        }
+
+        .wash-badge {
+            display: inline-block;
+            width: 24px;
+            padding: 3px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .badge-a { background: #2879df; }
+        .badge-b { background: #39a967; }
+        .badge-c { background: #8650d6; }
+
+        /* =========================
+           RIGHT PANEL
+        ========================= */
+
+        .right {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .chart {
+            height: 110px;
+            position: relative;
+            margin-top: 10px;
+            border-left: 1px solid #33475d;
+            border-bottom: 1px solid #33475d;
+        }
+
+        .bar {
+            height: 17px;
+            margin: 9px 0;
+            background: #2879df;
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .bar.green {
+            background: #39a967;
+        }
+
+        .bar.purple {
+            background: #8650d6;
+        }
+
+        .bar-label {
+            position: absolute;
+            left: -25px;
+            top: 1px;
+        }
+
+        /* simple fake line chart */
+
+        .line-chart {
+            height: 125px;
+            position: relative;
+            overflow: hidden;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0,
+                    transparent 24px,
+                    #1c2c3e 25px
+                );
+        }
+
+        .line {
+            position: absolute;
+            height: 2px;
+            width: 120%;
+            transform-origin: left center;
+        }
+
+        .line.a {
+            background: #2879df;
+            top: 70px;
+            left: 0;
+            transform: rotate(-7deg);
+        }
+
+        .line.b {
+            background: #39a967;
+            top: 80px;
+            left: 0;
+            transform: rotate(3deg);
+        }
+
+        .line.c {
+            background: #8650d6;
+            top: 90px;
+            left: 0;
+            transform: rotate(-13deg);
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 15px;
+            font-size: 11px;
+            color: #98a7b6;
+            margin-top: 7px;
+        }
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 1200px) {
+            .content {
+                grid-template-columns: 210px minmax(500px, 1fr);
+            }
+
+            .right {
+                display: none;
+            }
+        }
+
+        @media (max-width: 800px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .wash {
+                transform: scale(.8);
+                transform-origin: top left;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- ================= HEADER ================= -->
+
+    <header>
+        <h1>Симулятор распределения нагрузки между автомойками</h1>
+
+        <div class="header-controls">
+
+            <label>Балансировщик:</label>
+
+            <select id="balancer">
+                <option>JSQ — Shortest Queue</option>
+                <option>Weighted JSQ</option>
+                <option>Power of Two Choices</option>
+                <option>Round Robin</option>
+                <option>Predictive</option>
+            </select>
+
+            <button class="btn-primary" onclick="startSimulation()">
+                ▶ Запуск
+            </button>
+
+            <button onclick="pauseSimulation()">
+                ❚❚ Пауза
+            </button>
+
+            <button onclick="resetSimulation()">
+                ↻ Сброс
+            </button>
+
+        </div>
+    </header>
+
+
+    <!-- ================= CONTENT ================= -->
+
+    <div class="content">
+
+        <!-- ================= LEFT ================= -->
+
+        <aside class="sidebar">
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Настройки симуляции
+                </div>
+
+                <div class="field">
+                    <label>
+                        Длительность
+                        <span class="value">02:00:00</span>
+                    </label>
+                </div>
+
+                <div class="field">
+                    <label>
+                        Шаг симуляции
+                        <span class="value">5 сек</span>
+                    </label>
+                </div>
+
+                <div class="field">
+
+                    <label>
+                        Поток машин λ
+                        <span class="value" id="lambdaValue">
+                            30 машин/час
+                        </span>
+                    </label>
+
+                    <input
+                        type="range"
+                        min="5"
+                        max="100"
+                        value="30"
+                        id="lambda"
+                        oninput="updateLambda(this.value)"
+                    >
+
+                </div>
+
+                <div class="field">
+
+                    <label>Тип потока</label>
+
+                    <select style="width:100%">
+                        <option>Пуассоновский</option>
+                        <option>Равномерный</option>
+                        <option>Пиковый</option>
+                        <option>По историческим данным</option>
+                    </select>
+
+                </div>
+
+                <label class="checkbox">
+                    <input type="checkbox" checked>
+                    Учитывать расстояние
+                </label>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Отображение
+                </div>
+
+                <label class="checkbox">
+                    <input type="checkbox" checked>
+                    Показывать дороги
+                </label>
+
+                <label class="checkbox">
+                    <input type="checkbox" checked>
+                    Показывать посты
+                </label>
+
+                <label class="checkbox">
+                    <input type="checkbox" checked>
+                    Показывать очереди
+                </label>
+
+                <label class="checkbox">
+                    <input type="checkbox" checked>
+                    Показывать значения
+                </label>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Легенда
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-car car-road"></span>
+                    В пути
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-car car-queue"></span>
+                    В очереди
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-car car-service"></span>
+                    Обслуживается
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Метрики системы
+                </div>
+
+                <div class="metric">
+                    Обслужено машин
+                    <strong id="served">46</strong>
+                </div>
+
+                <div class="metric">
+                    Среднее ожидание
+                    <strong id="wait">6.8 мин</strong>
+                </div>
+
+                <div class="metric">
+                    Средняя очередь
+                    <strong>2.6</strong>
+                </div>
+
+                <div class="metric">
+                    Загрузка системы
+                    <strong>72%</strong>
+                </div>
+
+                <div class="metric">
+                    Поток λ
+                    <strong id="lambdaMetric">27.3/час</strong>
+                </div>
+
+            </section>
+
+        </aside>
+
+
+        <!-- ================= MAIN MAP ================= -->
+
+        <main class="main">
+
+            <div class="map">
+
+                <!-- simplified factory -->
+
+                <div class="building b1"></div>
+                <div class="building b2"></div>
+                <div class="building b3"></div>
+
+
+                <!-- roads -->
+
+                <div class="road horizontal"></div>
+                <div class="road vertical-left"></div>
+                <div class="road vertical-right"></div>
+                <div class="road bottom"></div>
+
+
+                <!-- distances -->
+
+                <div class="distance d1">
+                    1.2 км<br>
+                    3 мин
+                </div>
+
+                <div class="distance d2">
+                    1.4 км<br>
+                    4 мин
+                </div>
+
+                <div class="distance d3">
+                    1.6 км<br>
+                    4 мин
+                </div>
+
+
+                <!-- ================= PARKINGS ================= -->
+
+                <div class="parking p1">
+
+                    <div class="parking-title">
+                        🅿 Парковка 1
+                    </div>
+
+                    <div>
+                        Въезд машин
+                    </div>
+
+                    <div class="parking-cars">
+
+                        <span class="car blue"></span>
+                        <span class="car orange"></span>
+                        <span class="car green"></span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="parking p2">
+
+                    <div class="parking-title">
+                        🅿 Парковка 2
+                    </div>
+
+                    <div>
+                        Въезд машин
+                    </div>
+
+                    <div class="parking-cars">
+
+                        <span class="car blue"></span>
+                        <span class="car red"></span>
+                        <span class="car green"></span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="parking p3">
+
+                    <div class="parking-title">
+                        🅿 Парковка 3
+                    </div>
+
+                    <div>
+                        Въезд машин
+                    </div>
+
+                    <div class="parking-cars">
+
+                        <span class="car blue"></span>
+                        <span class="car purple"></span>
+                        <span class="car orange"></span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ================= CARS ON ROAD ================= -->
+
+                <div class="car blue c1"></div>
+                <div class="car orange c2"></div>
+                <div class="car green c3"></div>
+                <div class="car red c4"></div>
+                <div class="car blue c5"></div>
+
+
+                <!-- ================= WASH A ================= -->
+
+                <section class="wash a">
+
+                    <div class="wash-header">
+                        <span>🚿 Мойка A</span>
+                        <span>Посты: 4</span>
+                    </div>
+
+                    <div class="wash-body">
+
+                        <div class="posts-title">
+                            ПОСТЫ
+                        </div>
+
+                        <div class="posts">
+
+                            <div class="post busy"></div>
+                            <div class="post busy"></div>
+                            <div class="post"></div>
+                            <div class="post"></div>
+
+                        </div>
+
+                        <div class="queue-title">
+                            ОЧЕРЕДЬ (3)
+                        </div>
+
+                        <div class="queue">
+
+                            <div class="queue-car"></div>
+                            <div class="queue-car"></div>
+                            <div class="queue-car"></div>
+
+                        </div>
+
+                        <div class="wash-stats">
+
+                            <div class="stat">
+                                <div class="stat-value">12</div>
+                                <div class="stat-label">μ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">12.1</div>
+                                <div class="stat-label">λ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">0.63</div>
+                                <div class="stat-label">ρ</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">4.1</div>
+                                <div class="stat-label">Wq мин</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- ================= WASH B ================= -->
+
+                <section class="wash b">
+
+                    <div class="wash-header">
+                        <span>🚿 Мойка B</span>
+                        <span>Посты: 3</span>
+                    </div>
+
+                    <div class="wash-body">
+
+                        <div class="posts-title">
+                            ПОСТЫ
+                        </div>
+
+                        <div class="posts">
+
+                            <div class="post busy"></div>
+                            <div class="post"></div>
+                            <div class="post"></div>
+
+                        </div>
+
+                        <div class="queue-title">
+                            ОЧЕРЕДЬ (1)
+                        </div>
+
+                        <div class="queue">
+
+                            <div class="queue-car"></div>
+
+                        </div>
+
+                        <div class="wash-stats">
+
+                            <div class="stat">
+                                <div class="stat-value">10</div>
+                                <div class="stat-label">μ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">8.4</div>
+                                <div class="stat-label">λ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">0.56</div>
+                                <div class="stat-label">ρ</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">2.2</div>
+                                <div class="stat-label">Wq мин</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- ================= WASH C ================= -->
+
+                <section class="wash c">
+
+                    <div class="wash-header">
+                        <span>🚿 Мойка C</span>
+                        <span>Посты: 5</span>
+                    </div>
+
+                    <div class="wash-body">
+
+                        <div class="posts-title">
+                            ПОСТЫ
+                        </div>
+
+                        <div class="posts">
+
+                            <div class="post busy"></div>
+                            <div class="post busy"></div>
+                            <div class="post busy"></div>
+                            <div class="post busy"></div>
+                            <div class="post"></div>
+
+                        </div>
+
+                        <div class="queue-title">
+                            ОЧЕРЕДЬ (4)
+                        </div>
+
+                        <div class="queue">
+
+                            <div class="queue-car"></div>
+                            <div class="queue-car"></div>
+                            <div class="queue-car"></div>
+                            <div class="queue-car"></div>
+
+                        </div>
+
+                        <div class="wash-stats">
+
+                            <div class="stat">
+                                <div class="stat-value">14</div>
+                                <div class="stat-label">μ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value">14.7</div>
+                                <div class="stat-label">λ машин/ч</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value danger">0.78</div>
+                                <div class="stat-label">ρ</div>
+                            </div>
+
+                            <div class="stat">
+                                <div class="stat-value danger">7.8</div>
+                                <div class="stat-label">Wq мин</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+
+            <!-- ================= TABLE ================= -->
+
+            <section class="table-panel">
+
+                <div class="table-title">
+                    Сводная таблица по автомойкам
+                </div>
+
+                <table>
+
+                    <thead>
+                    <tr>
+                        <th>Мойка</th>
+                        <th>Посты c</th>
+                        <th>μ</th>
+                        <th>λ</th>
+                        <th>ρ</th>
+                        <th>Wq</th>
+                        <th>Очередь</th>
+                        <th>Обслужено</th>
+                        <th>Расстояние</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+
+                    <tr>
+                        <td>
+                            <span class="wash-badge badge-a">A</span>
+                        </td>
+                        <td>4</td>
+                        <td>12</td>
+                        <td>12.1</td>
+                        <td>0.63</td>
+                        <td>4.1 мин</td>
+                        <td>3</td>
+                        <td>18</td>
+                        <td>1.2 км / 3 мин</td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <span class="wash-badge badge-b">B</span>
+                        </td>
+                        <td>3</td>
+                        <td>10</td>
+                        <td>8.4</td>
+                        <td>0.56</td>
+                        <td>2.2 мин</td>
+                        <td>1</td>
+                        <td>13</td>
+                        <td>1.4 км / 4 мин</td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <span class="wash-badge badge-c">C</span>
+                        </td>
+                        <td>5</td>
+                        <td>14</td>
+                        <td>14.7</td>
+                        <td class="danger">0.78</td>
+                        <td class="danger">7.8 мин</td>
+                        <td>4</td>
+                        <td>15</td>
+                        <td>1.3 км / 4 мин</td>
+                    </tr>
+
+                    </tbody>
+
+                </table>
+
+            </section>
+
+        </main>
+
+
+        <!-- ================= RIGHT ================= -->
+
+        <aside class="right">
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Распределение потока
+                </div>
+
+                <div style="
+                    width:150px;
+                    height:150px;
+                    margin:10px auto;
+                    border-radius:50%;
+                    background:conic-gradient(
+                        #2879df 0 38%,
+                        #39a967 38% 67%,
+                        #8650d6 67% 100%
+                    );
+                "></div>
+
+                <div class="metric">
+                    <span>Мойка A</span>
+                    <strong>38%</strong>
+                </div>
+
+                <div class="metric">
+                    <span>Мойка B</span>
+                    <strong>29%</strong>
+                </div>
+
+                <div class="metric">
+                    <span>Мойка C</span>
+                    <strong>33%</strong>
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Загрузка автомоек (ρ)
+                </div>
+
+                <div style="padding-left:25px">
+
+                    <div class="bar" style="width:63%">
+                        <span class="bar-label">A</span>
+                    </div>
+
+                    <div class="bar green" style="width:56%">
+                        <span class="bar-label">B</span>
+                    </div>
+
+                    <div class="bar purple" style="width:78%">
+                        <span class="bar-label">C</span>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Среднее время ожидания Wq
+                </div>
+
+                <div class="line-chart">
+
+                    <div class="line a"></div>
+                    <div class="line b"></div>
+                    <div class="line c"></div>
+
+                </div>
+
+                <div class="chart-legend">
+                    <span>━ A</span>
+                    <span>━ B</span>
+                    <span>━ C</span>
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-title">
+                    Очереди
+                </div>
+
+                <div class="line-chart">
+
+                    <div class="line a" style="top:65px"></div>
+                    <div class="line b" style="top:85px"></div>
+                    <div class="line c" style="top:55px"></div>
+
+                </div>
+
+                <div class="chart-legend">
+                    <span>━ A</span>
+                    <span>━ B</span>
+                    <span>━ C</span>
+                </div>
+
+            </section>
+
+        </aside>
+
+    </div>
+</div>
+
+
+<script>
+
+    let running = false;
+    let timer = null;
+
+    function updateLambda(value) {
+
+        document.getElementById("lambdaValue").innerText =
+            value + " машин/час";
+
+        document.getElementById("lambdaMetric").innerText =
+            value + "/час";
+    }
+
+
+    function startSimulation() {
+
+        if (running) return;
+
+        running = true;
+
+        timer = setInterval(() => {
+
+            const served =
+                Math.floor(
+                    Math.random() * 3
+                );
+
+            const element =
+                document.getElementById("served");
+
+            element.innerText =
+                parseInt(element.innerText) + served;
+
+        }, 1000);
+    }
+
+
+    function pauseSimulation() {
+
+        running = false;
+
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+    }
+
+
+    function resetSimulation() {
+
+        pauseSimulation();
+
+        document.getElementById("served").innerText = "46";
+
+        document.getElementById("wait").innerText = "6.8 мин";
+
+        document.getElementById("lambda").value = 30;
+
+        updateLambda(30);
+    }
+
+
+    document
+        .getElementById("balancer")
+        .addEventListener("change", function () {
+
+            console.log(
+                "Выбран балансировщик:",
+                this.value
+            );
+
+        });
+
+</script>
+
+</body>
+</html>
