@@ -339,18 +339,26 @@ function PeakEditor({ peaks, onChange }: { peaks: PeakWindow[]; onChange: (v: Pe
 
 function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResult> }) {
   const scores = useMemo(() => {
+    const raw: Record<AlgoName, number> = {} as Record<AlgoName, number>;
+    for (const algo of ALGORITHMS) raw[algo] = penalty(results[algo].metrics);
+    const vals = ALGORITHMS.map(a => raw[a]);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const range = max - min;
     const map: Record<AlgoName, number> = {} as Record<AlgoName, number>;
-    for (const algo of ALGORITHMS) map[algo] = score(results[algo].metrics);
+    for (const algo of ALGORITHMS) {
+      map[algo] = range === 0 ? 100 : 100 * (max - raw[algo]) / range;
+    }
     return map;
   }, [results]);
   const bestAlgo = useMemo(() => {
-    return ALGORITHMS.reduce((best, algo) => (scores[algo] < scores[best] ? algo : best));
+    return ALGORITHMS.reduce((best, algo) => (scores[algo] > scores[best] ? algo : best));
   }, [scores]);
 
   return (
     <div>
       <p style={{ margin: '8px 0', fontSize: 13, color: '#475569' }}>
-        Score = 0.5 × avg W_q + 0.3 × avg T_travel + 0.2 × CV_ρ (меньше — лучше)
+        Score нормализован по текущему прогону: 100 — лучший алгоритм, 0 — худший. Чем больше, тем лучше.
       </p>
       <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 800 }}>
         <thead>
@@ -390,7 +398,7 @@ function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResu
   );
 }
 
-function score(m: SimulationResult['metrics']): number {
+function penalty(m: SimulationResult['metrics']): number {
   return 0.5 * m.avgWaitMin + 0.3 * m.avgTravelMin + 0.2 * m.cvRho;
 }
 
