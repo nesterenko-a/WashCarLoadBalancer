@@ -101,7 +101,7 @@ export function runSimulation(
   // Финальное обновление метрик до конца прогона
   state.updateMetrics(clock);
   // Финальный снапшот только если с момента последнего события прошло заметное время
-  if (snapshots.length === 0 || snapshots[snapshots.length - 1].time !== clock) {
+  if (snapshots.length === 0 || (snapshots[snapshots.length - 1] as SimSnapshot).time !== clock) {
     recordSnapshot();
   }
 

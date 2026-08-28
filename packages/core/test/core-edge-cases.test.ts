@@ -207,8 +207,8 @@ describe('Snapshot-рекордер', () => {
       (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
     );
     expect(result.snapshots.length).toBeGreaterThan(0);
-    expect(result.snapshots[0].time).toBe(0);
-    const first = result.snapshots[0];
+    expect(result.snapshots[0]!.time).toBe(0);
+    const first = result.snapshots[0]!;
     expect(first.washes).toHaveLength(WASHES.length);
     expect(first.vehicles.length).toBe(result.metrics.totalRequests);
   });
@@ -224,8 +224,10 @@ describe('Snapshot-рекордер', () => {
     );
     expect(a.snapshots.length).toBe(b.snapshots.length);
     for (let i = 0; i < a.snapshots.length; i++) {
-      expect(a.snapshots[i].time).toBe(b.snapshots[i].time);
-      expect(a.snapshots[i].vehicles.map(v => v.phase)).toEqual(b.snapshots[i].vehicles.map(v => v.phase));
+      const sa = a.snapshots[i]!;
+      const sb = b.snapshots[i]!;
+      expect(sa.time).toBe(sb.time);
+      expect(sa.vehicles.map(v => v.phase)).toEqual(sb.vehicles.map(v => v.phase));
     }
   });
 
@@ -235,6 +237,6 @@ describe('Snapshot-рекордер', () => {
       (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
     );
     expect(result.snapshots.length).toBe(1);
-    expect(result.snapshots[0].time).toBe(0);
+    expect(result.snapshots[0]!.time).toBe(0);
   });
 });
