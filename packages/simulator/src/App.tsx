@@ -12,6 +12,7 @@ import {
   mulberry32,
   runSimulation,
   type CarWash,
+  type PeakWindow,
   type SimConfig,
   type SimSnapshot,
   type SimulationResult,
@@ -57,19 +58,25 @@ const ALGORITHMS = ['random', 'jsq', 'weighted_jsq'] as const;
 
 type AlgoName = (typeof ALGORITHMS)[number];
 
-function createArrivals(seed: number) {
+const DEFAULT_PEAKS: PeakWindow[] = [
+  { startHour: 12, endHour: 13, factor: 3.0 },
+  { startHour: 17, endHour: 18, factor: 3.0 },
+];
+
+function createArrivals(seed: number, lambdaBasePerMin: number, horizonMin: number, peaks: PeakWindow[]) {
   return generateArrivals(
     {
-      lambdaBasePerMin: 0.25,
-      horizonMin: 480,
+      lambdaBasePerMin,
+      horizonMin,
       gridSizeMeters: 6000,
       typeShares: TYPE_SHARES,
+      peakWindows: peaks,
     },
     mulberry32(seed),
   );
 }
 
-function run(seed: number, algorithm: string): SimulationResult {
+function run(seed: number, algorithm: string, lambdaBasePerMin: number, horizonMin: number, peaks: PeakWindow[]): SimulationResult {
   const config: SimConfig = {
     seed,
     algorithm,
@@ -78,7 +85,7 @@ function run(seed: number, algorithm: string): SimulationResult {
     timeScale: 1,
   };
   return runSimulation(
-    { washes: WASHES, config, arrivals: createArrivals(seed), recordSnapshots: true },
+    { washes: WASHES, config, arrivals: createArrivals(seed, lambdaBasePerMin, horizonMin, peaks), recordSnapshots: true },
     (washes, cfg, rng) => new Dispatcher(washes, cfg, createAlgorithm(cfg.algorithm)),
   );
 }
@@ -92,6 +99,9 @@ function formatTime(min: number): string {
 
 export default function App() {
   const [seed, setSeed] = useState<number>(42);
+  const [lambdaBase, setLambdaBase] = useState<number>(0.5);
+  const [horizonMin, setHorizonMin] = useState<number>(480);
+  const [peaks, setPeaks] = useState<PeakWindow[]>(DEFAULT_PEAKS);
   const [results, setResults] = useState<Record<AlgoName, SimulationResult> | null>(null);
   const [selected, setSelected] = useState<AlgoName>('weighted_jsq');
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -101,7 +111,7 @@ export default function App() {
   const handleRun = () => {
     const next = {} as Record<AlgoName, SimulationResult>;
     for (const algo of ALGORITHMS) {
-      next[algo] = run(seed, algo);
+      next[algo] = run(seed, algo, lambdaBase, horizonMin, peaks);
     }
     setResults(next);
     setSelected('weighted_jsq');
@@ -149,6 +159,12 @@ export default function App() {
       <ControlBar
         seed={seed}
         onSeedChange={setSeed}
+        lambdaBase={lambdaBase}
+        onLambdaBaseChange={setLambdaBase}
+        horizonMin={horizonMin}
+        onHorizonMinChange={setHorizonMin}
+        peaks={peaks}
+        onPeaksChange={setPeaks}
         onRun={handleRun}
         playing={playing}
         onTogglePlay={() => setPlaying(p => !p)}
@@ -191,6 +207,12 @@ export default function App() {
 interface ControlBarProps {
   seed: number;
   onSeedChange: (v: number) => void;
+  lambdaBase: number;
+  onLambdaBaseChange: (v: number) => void;
+  horizonMin: number;
+  onHorizonMinChange: (v: number) => void;
+  peaks: PeakWindow[];
+  onPeaksChange: (v: PeakWindow[]) => void;
   onRun: () => void;
   playing: boolean;
   onTogglePlay: () => void;
@@ -204,6 +226,12 @@ interface ControlBarProps {
 function ControlBar({
   seed,
   onSeedChange,
+  lambdaBase,
+  onLambdaBaseChange,
+  horizonMin,
+  onHorizonMinChange,
+  peaks,
+  onPeaksChange,
   onRun,
   playing,
   onTogglePlay,
@@ -214,28 +242,40 @@ function ControlBar({
   onTimeChange,
 }: ControlBarProps) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16, alignItems: 'center' }}>
-      <label>
-        Seed:{' '}
-        <input type="number" value={seed} onChange={e => onSeedChange(Number(e.target.value))} style={{ width: 80 }} />
-      </label>
-      <button onClick={onRun}>▶ Запустить все три алгоритма</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+        <label>
+          Seed:{' '}
+          <input type="number" value={seed} onChange={e => onSeedChange(Number(e.target.value))} style={{ width: 80 }} />
+        </label>
+        <label>
+          λ базовая:{' '}
+          <input type="number" value={lambdaBase} onChange={e => onLambdaBaseChange(Number(e.target.value))} style={{ width: 60 }} step={0.1} />
+        </label>
+        <label>
+          Горизонт, мин:{' '}
+          <input type="number" value={horizonMin} onChange={e => onHorizonMinChange(Number(e.target.value))} style={{ width: 70 }} step={60} />
+        </label>
+        <button onClick={onRun}>▶ Запустить все три алгоритма</button>
 
-      <button onClick={onTogglePlay} disabled={maxTime <= 0}>
-        {playing ? '⏸ Pause' : '▶ Play'}
-      </button>
+        <button onClick={onTogglePlay} disabled={maxTime <= 0}>
+          {playing ? '⏸ Pause' : '▶ Play'}
+        </button>
 
-      <label>
-        Скорость:{' '}
-        <select value={speed} onChange={e => onSpeedChange(Number(e.target.value))}>
-          <option value={1}>1x</option>
-          <option value={5}>5x</option>
-          <option value={10}>10x</option>
-          <option value={50}>50x</option>
-        </select>
-      </label>
+        <label>
+          Скорость:{' '}
+          <select value={speed} onChange={e => onSpeedChange(Number(e.target.value))}>
+            <option value={1}>1x</option>
+            <option value={5}>5x</option>
+            <option value={10}>10x</option>
+            <option value={50}>50x</option>
+          </select>
+        </label>
+      </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 300 }}>
+      <PeakEditor peaks={peaks} onChange={onPeaksChange} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 300 }}>
         <span>{formatTime(currentTime)}</span>
         <input
           type="range"
@@ -248,6 +288,51 @@ function ControlBar({
         />
         <span>{formatTime(maxTime)}</span>
       </div>
+    </div>
+  );
+}
+
+function PeakEditor({ peaks, onChange }: { peaks: PeakWindow[]; onChange: (v: PeakWindow[]) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+      <strong>Пиковые окна:</strong>
+      {peaks.map((peak, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="number"
+            value={peak.startHour}
+            onChange={e => {
+              const next = [...peaks];
+              next[idx] = { ...peak, startHour: Number(e.target.value) };
+              onChange(next);
+            }}
+            style={{ width: 50 }}
+          />
+          <span>—</span>
+          <input
+            type="number"
+            value={peak.endHour}
+            onChange={e => {
+              const next = [...peaks];
+              next[idx] = { ...peak, endHour: Number(e.target.value) };
+              onChange(next);
+            }}
+            style={{ width: 50 }}
+          />
+          <span>×</span>
+          <input
+            type="number"
+            value={peak.factor}
+            onChange={e => {
+              const next = [...peaks];
+              next[idx] = { ...peak, factor: Number(e.target.value) };
+              onChange(next);
+            }}
+            style={{ width: 55 }}
+            step={0.5}
+          />
+        </div>
+      ))}
     </div>
   );
 }

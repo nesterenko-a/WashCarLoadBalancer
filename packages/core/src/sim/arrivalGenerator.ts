@@ -1,22 +1,17 @@
 /**
  * Генератор синтетических arrivals (Приложение Б спецификации).
- * Нестационарный Пуассоновский процесс с суточным профилем, thinning-метод Льюиса.
- * Все случайности — через seeded PRNG (NF-10).
+ * Нестационарный Пуассоновский процесс с настраиваемыми пиковыми окнами,
+ * thinning-метод Льюиса. Все случайности — через seeded PRNG (NF-10).
  */
 
 import type { Rng } from '../rng/mulberry32.js';
 import type { SimTime, Vehicle, VehicleType } from '../domain/types.js';
 
-/** Доля от базового λ_base для каждого часа суток. */
-const HOURLY_PROFILE: readonly number[] = [
-  0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, // 00–06
-  2.5, 2.5, 2.5, // 07–09
-  1.0, 1.0, // 10–11
-  0.5, // 12
-  1.0, 1.0, 1.0, // 13–15
-  2.0, 2.0, 2.0, // 16–18
-  0.4, 0.4, 0.4, 0.4, // 19–23
-];
+export interface PeakWindow {
+  startHour: number; // включительно
+  endHour: number;   // не включительно
+  factor: number;    // во сколько раз усилить поток
+}
 
 export interface ArrivalGeneratorConfig {
   /** Базовая интенсивность заявок в минуту. */
@@ -27,14 +22,21 @@ export interface ArrivalGeneratorConfig {
   gridSizeMeters: number;
   /** Доли типов ТС. */
   typeShares: Record<VehicleType, number>;
+  /** Пиковые окна нагрузки. */
+  peakWindows?: readonly PeakWindow[];
 }
+
+const DEFAULT_PEAKS: readonly PeakWindow[] = [
+  { startHour: 12, endHour: 13, factor: 3.0 },
+  { startHour: 17, endHour: 18, factor: 3.0 },
+];
 
 export function generateArrivals(
   config: ArrivalGeneratorConfig,
   rng: Rng,
 ): Vehicle[] {
-  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares } = config;
-  const lambdaMax = lambdaBasePerMin * Math.max(...HOURLY_PROFILE);
+  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares, peakWindows = DEFAULT_PEAKS } = config;
+  const lambdaMax = lambdaBasePerMin * maxRateMultiplier(peakWindows);
   if (lambdaMax <= 0) return [];
 
   const arrivals: Vehicle[] = [];
@@ -44,7 +46,7 @@ export function generateArrivals(
   while (true) {
     t += rng.exponential(lambdaMax);
     if (t >= horizonMin) break;
-    if (rng.next() < arrivalRateAt(t, lambdaBasePerMin) / lambdaMax) {
+    if (rng.next() < arrivalRateAt(t, lambdaBasePerMin, peakWindows) / lambdaMax) {
       arrivals.push(createVehicle(t, gridSizeMeters, typeShares, rng, arrivals.length));
     }
   }
@@ -52,9 +54,31 @@ export function generateArrivals(
   return arrivals;
 }
 
-function arrivalRateAt(timeMin: number, lambdaBasePerMin: number): number {
+function maxRateMultiplier(peakWindows: readonly PeakWindow[]): number {
+  let max = 1;
+  for (let hour = 0; hour < 24; hour++) {
+    max = Math.max(max, multiplierAt(hour, peakWindows));
+  }
+  return max;
+}
+
+function arrivalRateAt(
+  timeMin: number,
+  lambdaBasePerMin: number,
+  peakWindows: readonly PeakWindow[],
+): number {
   const hour = Math.min(Math.floor(timeMin / 60), 23);
-  return lambdaBasePerMin * (HOURLY_PROFILE[hour] ?? 0);
+  return lambdaBasePerMin * multiplierAt(hour, peakWindows);
+}
+
+function multiplierAt(hour: number, peakWindows: readonly PeakWindow[]): number {
+  let m = 1;
+  for (const peak of peakWindows) {
+    if (hour >= peak.startHour && hour < peak.endHour) {
+      m *= peak.factor;
+    }
+  }
+  return m;
 }
 
 function createVehicle(
