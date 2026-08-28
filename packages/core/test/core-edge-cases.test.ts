@@ -13,9 +13,15 @@ import {
 } from '../src/index.js';
 import { EventQueue } from '../src/sim/eventQueue.js';
 import { SimulationState } from '../src/sim/state.js';
-import { Dispatcher } from '../src/dispatcher/dispatcher.js';
 
 const TYPE_SHARES: Record<VehicleType, number> = { sedan: 0.6, truck: 0.3, bus: 0.1 };
+
+function createArrivals(seed: number) {
+  return generateArrivals(
+    { lambdaBasePerMin: 0.2, horizonMin: 120, gridSizeMeters: 6000, typeShares: TYPE_SHARES },
+    mulberry32(seed),
+  );
+}
 
 const WASHES: CarWash[] = [
   {
@@ -133,8 +139,8 @@ describe('Диспетчер', () => {
 
   it('неактивные и несовместимые мойки отфильтровываются и логируются', () => {
     const washes: CarWash[] = [
-      { ...WASHES[0], isActive: false },
-      { ...WASHES[1] },
+      { ...WASHES[0]!, isActive: false },
+      { ...WASHES[1]! },
     ];
     const result = run(makeConfig('jsq', 7), washes);
     expect(result.decisions.length).toBeGreaterThan(0);
@@ -191,5 +197,44 @@ describe('DES-движок', () => {
       mulberry32(1),
     );
     expect(arrivals).toHaveLength(0);
+  });
+});
+
+describe('Snapshot-рекордер', () => {
+  it('сохраняет снапшоты при recordSnapshots=true', () => {
+    const result = runSimulation(
+      { washes: WASHES, config: makeConfig('jsq', 1, 'manhattan'), arrivals: createArrivals(1), recordSnapshots: true },
+      (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
+    );
+    expect(result.snapshots.length).toBeGreaterThan(0);
+    expect(result.snapshots[0].time).toBe(0);
+    const first = result.snapshots[0];
+    expect(first.washes).toHaveLength(WASHES.length);
+    expect(first.vehicles.length).toBe(result.metrics.totalRequests);
+  });
+
+  it('детерминирован: одинаковые snapshots при одном seed', () => {
+    const a = runSimulation(
+      { washes: WASHES, config: makeConfig('jsq', 7, 'manhattan'), arrivals: createArrivals(7), recordSnapshots: true },
+      (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
+    );
+    const b = runSimulation(
+      { washes: WASHES, config: makeConfig('jsq', 7, 'manhattan'), arrivals: createArrivals(7), recordSnapshots: true },
+      (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
+    );
+    expect(a.snapshots.length).toBe(b.snapshots.length);
+    for (let i = 0; i < a.snapshots.length; i++) {
+      expect(a.snapshots[i].time).toBe(b.snapshots[i].time);
+      expect(a.snapshots[i].vehicles.map(v => v.phase)).toEqual(b.snapshots[i].vehicles.map(v => v.phase));
+    }
+  });
+
+  it('пустой поток даёт один финальный снапшот', () => {
+    const result = runSimulation(
+      { washes: WASHES, config: makeConfig('jsq', 1), arrivals: [], recordSnapshots: true },
+      (w, c, rng) => new Dispatcher(w, c, createAlgorithm(c.algorithm)),
+    );
+    expect(result.snapshots.length).toBe(1);
+    expect(result.snapshots[0].time).toBe(0);
   });
 });

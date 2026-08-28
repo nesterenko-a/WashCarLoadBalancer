@@ -11,6 +11,7 @@ import { mulberry32 } from '../rng/mulberry32.js';
 import { SimulationState } from './state.js';
 import { EventQueue } from './eventQueue.js';
 import { aggregateMetrics, type AggregateMetrics, type WashMetrics } from '../metrics/aggregates.js';
+import { buildSnapshot, type SimSnapshot } from './snapshots.js';
 
 type Event =
   | { time: SimTime; type: 'ARRIVAL'; request: WashRequest }
@@ -25,12 +26,15 @@ export interface SimulationResult {
   metrics: AggregateMetrics;
   washMetrics: Record<string, WashMetrics>;
   clock: SimTime;
+  snapshots: SimSnapshot[];
 }
 
 export interface SimulationInput {
   washes: readonly CarWash[];
   config: SimConfig;
   arrivals: readonly Vehicle[];
+  /** Записывать снапшоты для визуального playback. */
+  recordSnapshots?: boolean;
 }
 
 export function runSimulation(
@@ -44,6 +48,14 @@ export function runSimulation(
   const queue = new EventQueue<Event>();
   const requestsById = new Map<string, WashRequest>();
   const decisions: DecisionRecord[] = [];
+  const snapshots: SimSnapshot[] = [];
+  const shouldRecord = input.recordSnapshots ?? false;
+
+  function recordSnapshot(): void {
+    if (shouldRecord) {
+      snapshots.push(buildSnapshot(clock, washes, state, requestsById));
+    }
+  }
 
   // Запланировать ARRIVAL события
   for (const vehicle of arrivals) {
@@ -60,6 +72,8 @@ export function runSimulation(
 
   let clock: SimTime = 0;
   const simEnd = arrivals.length > 0 ? Math.max(...arrivals.map(v => v.arrivalTime)) + 60 * 24 : 0;
+
+  recordSnapshot();
 
   while (queue.length > 0 && clock < simEnd) {
     const event = queue.pop();
@@ -81,10 +95,15 @@ export function runSimulation(
         handleServiceComplete(event.requestId, event.washId, clock);
         break;
     }
+    recordSnapshot();
   }
 
   // Финальное обновление метрик до конца прогона
   state.updateMetrics(clock);
+  // Финальный снапшот только если с момента последнего события прошло заметное время
+  if (snapshots.length === 0 || snapshots[snapshots.length - 1].time !== clock) {
+    recordSnapshot();
+  }
 
   return {
     config,
@@ -93,6 +112,7 @@ export function runSimulation(
     metrics: aggregateMetrics(requestsById, state, washes, clock),
     washMetrics: collectWashMetrics(state, washes, clock),
     clock,
+    snapshots,
   };
 
   function handleArrival(request: WashRequest, now: SimTime): void {

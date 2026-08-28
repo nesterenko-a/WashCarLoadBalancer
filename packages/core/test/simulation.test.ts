@@ -101,7 +101,7 @@ describe('DES-движок', () => {
     const jsq = run(makeConfig('jsq', seed));
     // проверяем, что хотя бы одно решение отличается от Random, т.е. queue/busy/inTransit влияют
     const random = run(makeConfig('random', seed));
-    const diffCount = jsq.decisions.filter((d, i) => d.chosenWash !== random.decisions[i].chosenWash).length;
+    const diffCount = jsq.decisions.filter((d, i) => d.chosenWash !== random.decisions[i]?.chosenWash).length;
     expect(diffCount).toBeGreaterThan(0);
   });
 });
