@@ -339,16 +339,8 @@ function PeakEditor({ peaks, onChange }: { peaks: PeakWindow[]; onChange: (v: Pe
 
 function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResult> }) {
   const scores = useMemo(() => {
-    const raw: Record<AlgoName, number> = {} as Record<AlgoName, number>;
-    for (const algo of ALGORITHMS) raw[algo] = penalty(results[algo].metrics);
-    const vals = ALGORITHMS.map(a => raw[a]);
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const range = max - min;
     const map: Record<AlgoName, number> = {} as Record<AlgoName, number>;
-    for (const algo of ALGORITHMS) {
-      map[algo] = range === 0 ? 100 : 100 * (max - raw[algo]) / range;
-    }
+    for (const algo of ALGORITHMS) map[algo] = computeScore(results[algo].metrics);
     return map;
   }, [results]);
   const bestAlgo = useMemo(() => {
@@ -358,7 +350,8 @@ function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResu
   return (
     <div>
       <p style={{ margin: '8px 0', fontSize: 13, color: '#475569' }}>
-        Score нормализован по текущему прогону: 100 — лучший алгоритм, 0 — худший. Чем больше, тем лучше.
+        Score — абсолютная оценка прогона по 100-балльной шкале. 100 — недостижимый идеал
+        (мойки равномерно загружены, нулевая очередь, ρ = 80%). 75–95 — хорошо, 40–60 — удовлетворительно, 10–30 — плохо.
       </p>
       <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 800 }}>
         <thead>
@@ -398,8 +391,17 @@ function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResu
   );
 }
 
-function penalty(m: SimulationResult['metrics']): number {
-  return 0.5 * m.avgWaitMin + 0.3 * m.avgTravelMin + 0.2 * m.cvRho;
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function computeScore(m: SimulationResult['metrics']): number {
+  const jain = m.jainFairness;
+  const wait = clamp(1 - m.avgWaitMin / 10, 0, 1);
+  const travel = clamp(1 - m.avgTravelMin / 20, 0, 1);
+  const sla = 1 - m.slaViolationRate;
+  const rhoBonus = clamp(1 - Math.abs(m.avgRho - 0.8) / 0.3, 0, 1);
+  return clamp(30 * jain + 30 * wait + 20 * travel + 10 * sla + 10 * rhoBonus, 0, 100);
 }
 
 function MetricsPanel({ result, currentTime }: { result: SimulationResult; currentTime: number }) {
