@@ -1,7 +1,7 @@
 /**
- * Визуальный симулятор с playback.
- * Запускает три алгоритма, строит снапшоты и позволяет
- * проигрывать их с play/pause, слайдером и выбором скорости.
+ * Визуальный симулятор с playback и улучшенной Canvas-визуализацией.
+ * Рисует дорожную сеть, здания моек с постами, очереди,
+ * движение машин по дорогам и процесс мойки.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ import {
   type SimSnapshot,
   type SimulationResult,
   type VehicleType,
+  type WashRequest,
 } from '@loadbalancer/core';
 
 const WASHES: CarWash[] = [
@@ -119,14 +120,13 @@ export default function App() {
     return snaps.length > 0 ? snaps[snaps.length - 1].time : 0;
   }, [activeResult]);
 
-  // playback loop
   const lastFrameRef = useRef<number | null>(null);
   useEffect(() => {
     if (!playing || !activeResult) return;
     let rafId: number;
     const loop = (ts: number) => {
       if (lastFrameRef.current === null) lastFrameRef.current = ts;
-      const dt = (ts - lastFrameRef.current) / 1000; // seconds
+      const dt = (ts - lastFrameRef.current) / 1000;
       lastFrameRef.current = ts;
       setCurrentTime(prev => {
         const next = prev + dt * speed;
@@ -141,7 +141,6 @@ export default function App() {
     };
   }, [playing, activeResult, maxTime, speed]);
 
-  // reset current time when switching algorithm
   useEffect(() => {
     setCurrentTime(0);
     setPlaying(false);
@@ -344,7 +343,7 @@ function MapCanvas({ result, currentTime }: { result: SimulationResult; currentT
     drawMap(canvas, result, currentTime);
   }, [result, currentTime]);
 
-  return <canvas ref={canvasRef} width={700} height={500} style={{ border: '1px solid #ccc', display: 'block' }} />;
+  return <canvas ref={canvasRef} width={900} height={720} style={{ border: '1px solid #ccc', display: 'block', background: '#e5e7eb' }} />;
 }
 
 function findSnapshot(snapshots: SimSnapshot[], time: number): SimSnapshot | null {
@@ -357,107 +356,296 @@ function findSnapshot(snapshots: SimSnapshot[], time: number): SimSnapshot | nul
   return snapshots[idx];
 }
 
-const COLORS: Record<VehicleType, string> = { sedan: '#3b82f6', truck: '#f59e0b', bus: '#10b981' };
+const COLORS: Record<VehicleType, string> = { sedan: '#2563eb', truck: '#d97706', bus: '#059669' };
 
 function drawMap(canvas: HTMLCanvasElement, result: SimulationResult, currentTime: number) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const scale = 0.08;
-  const offsetX = 90;
-  const offsetY = 70;
-  const territorySize = 6000 * scale;
+  const scale = 0.1;
+  const offsetX = 70;
+  const offsetY = 60;
+  const territorySize = 6000 * scale; // 600 px
 
   // Фон территории
-  ctx.fillStyle = '#f9fafb';
+  ctx.fillStyle = '#f0f4f8';
   ctx.fillRect(offsetX, offsetY, territorySize, territorySize);
-  ctx.strokeStyle = '#d1d5db';
-  ctx.strokeRect(offsetX, offsetY, territorySize, territorySize);
+
+  // Дорожная сеть
+  drawRoads(ctx, WASHES, scale, offsetX, offsetY);
 
   const snapshot = findSnapshot(result.snapshots, currentTime);
-
-  // Мойки
   const washSnapById = new Map(snapshot?.washes.map(w => [w.washId, w]) ?? []);
+
+  // Мойки с постами, очередью и машинами
   for (const wash of WASHES) {
-    const [x, y] = wash.coordinates;
-    const px = offsetX + x * scale;
-    const py = offsetY + y * scale;
     const ws = washSnapById.get(wash.id);
-
-    const size = 38 + wash.posts * 6;
-    ctx.fillStyle = '#e0f2fe';
-    ctx.fillRect(px - size / 2, py - size / 2, size, size);
-    ctx.strokeStyle = '#0284c7';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(px - size / 2, py - size / 2, size, size);
-
-    ctx.fillStyle = '#000';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(wash.name, px, py - size / 2 - 8);
-    ctx.fillText(`c=${wash.posts}`, px, py + 4);
-    if (ws) {
-      ctx.fillText(`L=${ws.queueLength} t=${ws.inTransit}`, px, py + 18);
-      ctx.fillText(`ρ=${(ws.rho * 100).toFixed(0)}%`, px, py + 32);
-    }
-
-    // Занятые посты
-    if (ws) {
-      for (let i = 0; i < ws.busyPosts; i++) {
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(px - size / 2 + 4 + i * 8, py + size / 2 + 4, 6, 6);
-      }
-    }
-
-    // Очередь — точки под мойкой
-    const queueCount = ws?.queueLength ?? 0;
-    for (let i = 0; i < queueCount; i++) {
-      const qx = px - size / 2 + 6 + (i % 4) * 10;
-      const qy = py + size / 2 + 18 + Math.floor(i / 4) * 10;
-      ctx.fillStyle = '#6b7280';
-      ctx.beginPath();
-      ctx.arc(qx, qy, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Машины
-  if (snapshot) {
-    for (const v of snapshot.vehicles) {
-      const [vx, vy] = v.location;
-      const px = offsetX + vx * scale;
-      const py = offsetY + vy * scale;
-      ctx.fillStyle = COLORS[v.type];
-      ctx.beginPath();
-      ctx.arc(px, py, 4, 0, Math.PI * 2);
-      ctx.fill();
-      // обводка для срочных
-      if (v.priority === 'urgent') {
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    }
+    drawWash(ctx, wash, ws, scale, offsetX, offsetY, result, currentTime);
   }
 
   // Легенда
+  drawLegend(ctx, result, currentTime);
+}
+
+function drawRoads(
+  ctx: CanvasRenderingContext2D,
+  washes: readonly CarWash[],
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+) {
+  const territorySize = 6000 * scale;
+  const xs = new Set<number>([0, 6000]);
+  const ys = new Set<number>([0, 6000]);
+  for (const w of washes) {
+    xs.add(w.coordinates[0]);
+    ys.add(w.coordinates[1]);
+  }
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  for (const x of xs) {
+    const px = offsetX + x * scale;
+    ctx.beginPath();
+    ctx.moveTo(px, offsetY);
+    ctx.lineTo(px, offsetY + territorySize);
+    ctx.stroke();
+  }
+  for (const y of ys) {
+    const py = offsetY + y * scale;
+    ctx.beginPath();
+    ctx.moveTo(offsetX, py);
+    ctx.lineTo(offsetX + territorySize, py);
+    ctx.stroke();
+  }
+
+  // Разметка перекрёстков
+  ctx.fillStyle = '#e2e8f0';
+  for (const x of xs) {
+    for (const y of ys) {
+      const px = offsetX + x * scale;
+      const py = offsetY + y * scale;
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+const SLOT_WIDTH = 34;
+const SLOT_HEIGHT = 52;
+const BUILDING_PADDING = 10;
+
+function drawWash(
+  ctx: CanvasRenderingContext2D,
+  wash: CarWash,
+  ws: { queueLength: number; busyPosts: number; inTransit: number; rho: number } | undefined,
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+  result: SimulationResult,
+  currentTime: number,
+) {
+  const [cx, cy] = wash.coordinates;
+  const px = offsetX + cx * scale;
+  const py = offsetY + cy * scale;
+
+  const buildingWidth = wash.posts * SLOT_WIDTH + BUILDING_PADDING * 2;
+  const buildingHeight = SLOT_HEIGHT + BUILDING_PADDING * 2;
+
+  // Здание мойки
+  ctx.fillStyle = '#e2e8f0';
+  roundRect(ctx, px - buildingWidth / 2, py - buildingHeight / 2, buildingWidth, buildingHeight, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2;
+  roundRect(ctx, px - buildingWidth / 2, py - buildingHeight / 2, buildingWidth, buildingHeight, 8);
+  ctx.stroke();
+
+  // Крыша
+  ctx.fillStyle = '#64748b';
+  ctx.beginPath();
+  ctx.moveTo(px - buildingWidth / 2 - 6, py - buildingHeight / 2);
+  ctx.lineTo(px, py - buildingHeight / 2 - 16);
+  ctx.lineTo(px + buildingWidth / 2 + 6, py - buildingHeight / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Посты
+  const busyCount = ws?.busyPosts ?? 0;
+  for (let i = 0; i < wash.posts; i++) {
+    const sx = px - buildingWidth / 2 + BUILDING_PADDING + i * SLOT_WIDTH;
+    const sy = py - SLOT_HEIGHT / 2;
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(sx, sy, SLOT_WIDTH - 4, SLOT_HEIGHT);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx, sy, SLOT_WIDTH - 4, SLOT_HEIGHT);
+
+    // Занятый пост — машина внутри
+    if (i < busyCount) {
+      const request = findBusyVehicle(result, wash.id, currentTime, i);
+      if (request) {
+        drawVehicle(ctx, request.vehicle.type, [sx + (SLOT_WIDTH - 4) / 2, sy + SLOT_HEIGHT / 2], 10, request.vehicle.priority === 'urgent');
+      } else {
+        drawVehicle(ctx, 'sedan', [sx + (SLOT_WIDTH - 4) / 2, sy + SLOT_HEIGHT / 2], 10, false);
+      }
+    }
+  }
+
+  // Надпись и метрики
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(wash.name, px, py - buildingHeight / 2 - 22);
+  ctx.font = '11px sans-serif';
+  ctx.fillText(`c=${wash.posts} L=${ws?.queueLength ?? 0} t=${ws?.inTransit ?? 0}`, px, py + buildingHeight / 2 + 14);
+  ctx.fillText(`ρ=${((ws?.rho ?? 0) * 100).toFixed(0)}%`, px, py + buildingHeight / 2 + 28);
+
+  // Очередь слева от мойки
+  const queueCount = ws?.queueLength ?? 0;
+  for (let i = 0; i < queueCount; i++) {
+    const request = findQueuedVehicle(result, wash.id, currentTime, i);
+    const qx = px - buildingWidth / 2 - 18;
+    const qy = py + buildingHeight / 2 + 16 + i * 14;
+    drawVehicle(ctx, request?.vehicle.type ?? 'sedan', [qx, qy], 6, request?.vehicle.priority === 'urgent');
+  }
+
+  // Машины в пути (переопределяем позицию по дорожной сети)
+  if (ws && ws.inTransit > 0) {
+    const transitRequests = findTransitVehicles(result, wash.id, currentTime);
+    for (const req of transitRequests) {
+      const pos = roadPosition(req, currentTime, wash.coordinates);
+      const px2 = offsetX + pos[0] * scale;
+      const py2 = offsetY + pos[1] * scale;
+      drawVehicle(ctx, req.vehicle.type, [px2, py2], 7, req.vehicle.priority === 'urgent');
+    }
+  }
+}
+
+function drawVehicle(
+  ctx: CanvasRenderingContext2D,
+  type: VehicleType,
+  center: [number, number],
+  size: number,
+  urgent: boolean,
+) {
+  const [x, y] = center;
+  ctx.fillStyle = COLORS[type];
+  if (type === 'sedan') {
+    roundRect(ctx, x - size, y - size / 2, size * 2, size, 4);
+    ctx.fill();
+  } else if (type === 'truck') {
+    ctx.fillRect(x - size, y - size / 2, size * 2.2, size);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(x + size * 0.3, y - size / 2, size * 0.4, size);
+    ctx.fillStyle = COLORS[type];
+  } else {
+    // bus
+    roundRect(ctx, x - size * 1.3, y - size / 2, size * 2.6, size, 4);
+    ctx.fill();
+  }
+
+  if (urgent) {
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, size + 3, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawLegend(ctx: CanvasRenderingContext2D, result: SimulationResult, currentTime: number) {
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#000';
-  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 12px sans-serif';
   ctx.fillText(`Алгоритм: ${result.config.algorithm} | seed: ${result.config.seed} | time: ${formatTime(currentTime)}`, 10, 20);
 
-  let ly = 40;
-  ctx.fillStyle = COLORS.sedan;
-  ctx.beginPath(); ctx.arc(16, ly, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.fillText('sedan', 26, ly + 4); ly += 16;
-  ctx.fillStyle = COLORS.truck;
-  ctx.beginPath(); ctx.arc(16, ly, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.fillText('truck', 26, ly + 4); ly += 16;
-  ctx.fillStyle = COLORS.bus;
-  ctx.beginPath(); ctx.arc(16, ly, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.fillText('bus', 26, ly + 4); ly += 16;
-  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(16, ly, 4, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#000'; ctx.fillText('urgent', 26, ly + 4);
+  const legendX = 10;
+  let legendY = 42;
+  const items: [VehicleType, string][] = [
+    ['sedan', 'легковая'],
+    ['truck', 'грузовая'],
+    ['bus', 'автобус'],
+  ];
+  for (const [type, label] of items) {
+    drawVehicle(ctx, type, [legendX + 10, legendY], 6, false);
+    ctx.fillStyle = '#1e293b';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(label, legendX + 26, legendY + 4);
+    legendY += 20;
+  }
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(legendX + 10, legendY, 6, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText('срочная', legendX + 26, legendY + 4);
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function roadPosition(req: WashRequest, currentTime: number, washCoord: [number, number]): [number, number] {
+  const start = req.vehicle.location;
+  const end = washCoord;
+  const assignedAt = req.assignedAt;
+  const arrivedAt = req.arrivedAt ?? assignedAt;
+  const duration = Math.max(arrivedAt - assignedAt, 1e-6);
+  const progress = Math.min(Math.max((currentTime - assignedAt) / duration, 0), 1);
+
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const manhattan = Math.abs(dx) + Math.abs(dy);
+  if (manhattan <= 0) return end;
+
+  const horizShare = Math.abs(dx) / manhattan;
+  if (progress < horizShare) {
+    const p = progress / horizShare;
+    return [start[0] + dx * p, start[1]];
+  }
+  const p = (progress - horizShare) / (1 - horizShare);
+  return [end[0], start[1] + dy * p];
+}
+
+function findBusyVehicle(result: SimulationResult, washId: string, currentTime: number, postIndex: number): WashRequest | null {
+  const req = result.requests.find(r => {
+    if (r.targetWash !== washId) return false;
+    if (r.startedAt === undefined || r.completedAt === undefined) return false;
+    return r.startedAt <= currentTime && r.completedAt > currentTime;
+  });
+  return req ?? null;
+}
+
+function findQueuedVehicle(result: SimulationResult, washId: string, currentTime: number, queueIndex: number): WashRequest | null {
+  const queue = result.requests.filter(r => {
+    if (r.targetWash !== washId) return false;
+    if (r.arrivedAt === undefined || r.startedAt === undefined) return false;
+    return r.arrivedAt <= currentTime && r.startedAt > currentTime;
+  });
+  return queue[queueIndex] ?? null;
+}
+
+function findTransitVehicles(result: SimulationResult, washId: string, currentTime: number): WashRequest[] {
+  return result.requests.filter(r => {
+    if (r.targetWash !== washId) return false;
+    if (r.assignedAt > currentTime) return false;
+    if (r.arrivedAt !== undefined && r.arrivedAt <= currentTime) return false;
+    return true;
+  });
 }
