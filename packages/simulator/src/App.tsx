@@ -83,10 +83,6 @@ function run(seed: number, algorithm: string): SimulationResult {
   );
 }
 
-function objective(m: SimulationResult['metrics']): number {
-  return 0.5 * m.avgWaitMin + 0.3 * m.avgTravelMin + 0.2 * m.cvRho;
-}
-
 function formatTime(min: number): string {
   const h = Math.floor(min / 60);
   const m = Math.floor(min % 60);
@@ -257,41 +253,60 @@ function ControlBar({
 }
 
 function ComparisonTable({ results }: { results: Record<AlgoName, SimulationResult> }) {
+  const scores = useMemo(() => {
+    const map: Record<AlgoName, number> = {} as Record<AlgoName, number>;
+    for (const algo of ALGORITHMS) map[algo] = score(results[algo].metrics);
+    return map;
+  }, [results]);
+  const bestAlgo = useMemo(() => {
+    return ALGORITHMS.reduce((best, algo) => (scores[algo] < scores[best] ? algo : best));
+  }, [scores]);
+
   return (
-    <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 800 }}>
-      <thead>
-        <tr style={{ background: '#f3f4f6' }}>
-          <th style={{ textAlign: 'left', padding: 8 }}>Алгоритм</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>Заявок</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>avg W_q</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>max W_q</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>SLA &gt;15</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>avg ρ</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>CV ρ</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>Jain</th>
-          <th style={{ textAlign: 'right', padding: 8 }}>Objective</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ALGORITHMS.map(algo => {
-          const m = results[algo].metrics;
-          return (
-            <tr key={algo} style={{ borderBottom: '1px solid #e5e7eb' }}>
-              <td style={{ padding: 8 }}>{algo}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{m.totalRequests}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{m.avgWaitMin.toFixed(2)}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{m.maxWaitMin.toFixed(2)}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{(m.slaViolationRate * 100).toFixed(1)}%</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{(m.avgRho * 100).toFixed(1)}%</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{m.cvRho.toFixed(3)}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{m.jainFairness.toFixed(3)}</td>
-              <td style={{ textAlign: 'right', padding: 8 }}>{objective(m).toFixed(3)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div>
+      <p style={{ margin: '8px 0', fontSize: 13, color: '#475569' }}>
+        Score = 0.5 × avg W_q + 0.3 × avg T_travel + 0.2 × CV_ρ (меньше — лучше)
+      </p>
+      <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 800 }}>
+        <thead>
+          <tr style={{ background: '#f3f4f6' }}>
+            <th style={{ textAlign: 'left', padding: 8 }}>Алгоритм</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>Заявок</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>avg W_q</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>max W_q</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>SLA &gt;15</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>avg ρ</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>CV ρ</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>Jain</th>
+            <th style={{ textAlign: 'right', padding: 8 }}>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ALGORITHMS.map(algo => {
+            const m = results[algo].metrics;
+            const isBest = algo === bestAlgo;
+            return (
+              <tr key={algo} style={{ borderBottom: '1px solid #e5e7eb', fontWeight: isBest ? 'bold' : 'normal', background: isBest ? '#ecfdf5' : undefined }}>
+                <td style={{ padding: 8 }}>{algo}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{m.totalRequests}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{m.avgWaitMin.toFixed(2)}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{m.maxWaitMin.toFixed(2)}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{(m.slaViolationRate * 100).toFixed(1)}%</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{(m.avgRho * 100).toFixed(1)}%</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{m.cvRho.toFixed(3)}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{m.jainFairness.toFixed(3)}</td>
+                <td style={{ textAlign: 'right', padding: 8 }}>{scores[algo].toFixed(3)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
+}
+
+function score(m: SimulationResult['metrics']): number {
+  return 0.5 * m.avgWaitMin + 0.3 * m.avgTravelMin + 0.2 * m.cvRho;
 }
 
 function MetricsPanel({ result, currentTime }: { result: SimulationResult; currentTime: number }) {
