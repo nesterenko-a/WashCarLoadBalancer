@@ -155,7 +155,8 @@ export class Dispatcher {
   }
 
   private computeShares(types: VehicleType[]): { sedan: number; truck: number; bus: number } {
-    const n = types.length || 1;
+    const n = types.length;
+    if (n === 0) return { sedan: 0, truck: 0, bus: 0 };
     const counts = { sedan: 0, truck: 0, bus: 0 };
     for (const type of types) counts[type]++;
     return {

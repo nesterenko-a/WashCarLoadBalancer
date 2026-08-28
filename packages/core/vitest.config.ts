@@ -6,6 +6,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
+      exclude: ['src/domain/types.ts'], // только type-only интерфейсы
       // scripts/ — CLI-обвязка вне src, в покрытие не входит
       thresholds: {
         lines: 80,
