@@ -16,9 +16,16 @@ T_total = T_travel + T_wait + T_service
 
 ## 2. Текущее состояние репозитория
 
-На данный момент проект находится на стадии **проектирования (pre-code)**: в репозитории есть только документация, исходного кода и конфигурационных файлов (`package.json`, `pyproject.toml`, `Cargo.toml` и т.д.) **пока нет**.
+Проект перешёл к **Этапу 1**: реализовано ядро `packages/core` с DES-движком, диспетчером, тремя алгоритмами и тестами, а также минимальный React-симулятор `packages/simulator`.
 
 ```
+packages/
+├── core/                   # Ядро: домен, DES, диспетчер, алгоритмы, метрики, PRNG
+│   ├── src/
+│   ├── test/               # unit-тесты Erlang C и DES
+│   └── scripts/            # headless-прогон для A/B-сравнения
+├── simulator/              # React + Vite + Canvas — визуальное сравнение алгоритмов
+└── api/                    # REST API (этап 5, пока не создан)
 docs/
 ├── SPECIFICATION.md        # Главный документ: ТЗ и спецификация архитектуры (v2.0, Review)
 ├── lb_base.md              # Математический фундамент: Little's Law, M/M/c, Erlang C
@@ -92,7 +99,30 @@ packages/
 
 ## 6. Сборка, запуск и тестирование
 
-**Команд сборки и тестов пока нет** — кодовая база ещё не создана. Когда она появится (этап 1 плана: pnpm workspaces, `packages/core` с Vitest), этот раздел нужно будет обновить фактическими командами (`pnpm install`, `pnpm -r test`, `pnpm --filter simulator dev`, и т.д.).
+**Фактические команды:**
+
+```bash
+# Установка зависимостей
+pnpm install
+
+# Тесты ядра
+pnpm -r test
+# или с покрытием
+pnpm --filter @loadbalancer/core test:coverage
+
+# Headless-прогон сравнения трёх алгоритмов (seed по умолчанию 42)
+pnpm --filter @loadbalancer/core run:headless 42
+
+# Сборка симулятора
+pnpm --filter @loadbalancer/simulator build
+
+# Запуск dev-сервера симулятора
+pnpm --filter @loadbalancer/simulator dev
+```
+
+Известные ограничения текущей версии:
+- в `test:coverage` не покрыты все edge-case ветви (например, `Rng.sample`, отказ/нереализованные приоритетные очереди) — см. отчёт покрытия;
+- State-Aware Score, Power of d, Round Robin, Least Connections, приоритетные очереди (F-06), отказы постов (F-08) и REST API — Этапы 2–5.
 
 Планируемая стратегия валидации (из разделов 11–12 спецификации):
 

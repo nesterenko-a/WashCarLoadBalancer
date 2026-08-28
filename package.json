@@ -1,0 +1,9 @@
+{
+  "name": "loadbalancer",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Интеллектуальная система балансировки нагрузки для сети автомоек",
+  "scripts": {
+    "test": "pnpm -r test"
+  }
+}

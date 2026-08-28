@@ -1,0 +1,22 @@
+{
+  "name": "@loadbalancer/core",
+  "version": "0.1.0",
+  "description": "Ядро системы балансировки нагрузки: домен, DES-движок, диспетчер, алгоритмы, метрики, PRNG",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "run:headless": "tsx scripts/run-headless.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.4"
+  }
+}
