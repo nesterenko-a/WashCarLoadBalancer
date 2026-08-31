@@ -24,6 +24,8 @@ export interface DecisionRecord {
   algorithm: string;
   chosenWash: string | null;
   scores: Record<string, number>;
+  /** Score выбранной мойки: удобен для отображения объяснения решения в UI. */
+  chosenScore: number | null;
   rejectedReason: string;
 }
 
@@ -80,6 +82,7 @@ export class Dispatcher {
       algorithm: this.algorithm.name,
       chosenWash: decision.washId,
       scores: decision.scores,
+      chosenScore: decision.washId === null ? null : decision.scores[decision.washId] ?? null,
       rejectedReason: rejectReasons.join('; '),
     };
 

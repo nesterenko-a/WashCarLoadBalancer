@@ -39,6 +39,22 @@ export interface Vehicle {
   priority: Priority;
   arrivalTime: SimTime;
   location: [x: number, y: number];
+  /**
+   * Точка возникновения заявки. Пока опциональна для обратной совместимости
+   * с импортом старых CSV; новые генераторы обязаны её заполнять.
+   *
+   * Следующий этап: RoutePlanner будет строить маршрут от source.coordinates
+   * до выбранной мойки по графу дорог предприятия.
+   */
+  source?: VehicleSource;
+}
+
+/** Въезд на завод или цех, из которого возникает заявка на мойку. */
+export interface VehicleSource {
+  id: string;
+  name: string;
+  kind: 'entrance' | 'workshop';
+  coordinates: [x: number, y: number];
 }
 
 export interface WashRequest {

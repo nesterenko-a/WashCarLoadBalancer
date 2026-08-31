@@ -9,6 +9,7 @@ import {
   runSimulation,
   type CarWash,
   type SimConfig,
+  type VehicleSource,
   type VehicleType,
 } from '../src/index.js';
 import { EventQueue } from '../src/sim/eventQueue.js';
@@ -88,6 +89,22 @@ describe('PRNG', () => {
     const rng = mulberry32(3);
     expect(() => rng.exponential(0)).toThrow();
     expect(() => rng.exponential(-1)).toThrow();
+  });
+});
+
+describe('Источники заявок', () => {
+  it('генератор назначает источник из заданного списка детерминированно', () => {
+    const sources: VehicleSource[] = [
+      { id: 'entrance', name: 'Въезд', kind: 'entrance', coordinates: [0, 0] },
+      { id: 'shop_1', name: 'Цех №1', kind: 'workshop', coordinates: [100, 200] },
+    ];
+    const config = { lambdaBasePerMin: 0.5, horizonMin: 60, gridSizeMeters: 1000, typeShares: TYPE_SHARES, sources };
+    const first = generateArrivals(config, mulberry32(123));
+    const second = generateArrivals(config, mulberry32(123));
+
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.map(v => v.source?.id)).toEqual(second.map(v => v.source?.id));
+    expect(first.every(v => v.source !== undefined && v.location === v.source.coordinates)).toBe(true);
   });
 });
 

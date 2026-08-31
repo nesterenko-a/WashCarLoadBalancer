@@ -26,6 +26,8 @@ export interface VehicleSnapshot {
   phase: VehiclePhase;
   location: [number, number];
   targetWashId: string | null;
+  /** Источник нужен визуальному симулятору для объяснения маршрута заявки. */
+  sourceId?: string;
 }
 
 export interface SimSnapshot {
@@ -78,29 +80,29 @@ function buildVehicleSnapshot(
   const { vehicle } = request;
 
   if (time < vehicle.arrivalTime) {
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'future', location: vehicle.location, targetWashId: null };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'future', location: vehicle.location, targetWashId: null, sourceId: vehicle.source?.id };
   }
 
   if (request.targetWash === null) {
     // Отказ — машина остаётся на точке появления
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: vehicle.location, targetWashId: null };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: vehicle.location, targetWashId: null, sourceId: vehicle.source?.id };
   }
 
   const wash = washes.find(w => w.id === request.targetWash);
   if (!wash) {
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: vehicle.location, targetWashId: request.targetWash };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: vehicle.location, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
   }
 
   if (request.completedAt !== undefined && time >= request.completedAt) {
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: wash.coordinates, targetWashId: request.targetWash };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'done', location: wash.coordinates, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
   }
 
   if (request.startedAt !== undefined && time >= request.startedAt) {
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'busy', location: wash.coordinates, targetWashId: request.targetWash };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'busy', location: wash.coordinates, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
   }
 
   if (request.arrivedAt !== undefined && time >= request.arrivedAt) {
-    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'queued', location: wash.coordinates, targetWashId: request.targetWash };
+    return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'queued', location: wash.coordinates, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
   }
 
   // В пути: интерполяция от точки появления к мойке
@@ -115,5 +117,5 @@ function buildVehicleSnapshot(
     start[1] + (end[1] - start[1]) * progress,
   ];
 
-  return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'transit', location, targetWashId: request.targetWash };
+  return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'transit', location, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
 }

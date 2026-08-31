@@ -5,7 +5,7 @@
  */
 
 import type { Rng } from '../rng/mulberry32.js';
-import type { SimTime, Vehicle, VehicleType } from '../domain/types.js';
+import type { SimTime, Vehicle, VehicleSource, VehicleType } from '../domain/types.js';
 
 export interface PeakWindow {
   startHour: number; // включительно
@@ -24,6 +24,11 @@ export interface ArrivalGeneratorConfig {
   typeShares: Record<VehicleType, number>;
   /** Пиковые окна нагрузки. */
   peakWindows?: readonly PeakWindow[];
+  /**
+   * Источники заявок на территории. При отсутствии сохраняется прежнее
+   * равномерное появление на карте — для обратной совместимости сценариев.
+   */
+  sources?: readonly VehicleSource[];
 }
 
 const DEFAULT_PEAKS: readonly PeakWindow[] = [
@@ -35,7 +40,7 @@ export function generateArrivals(
   config: ArrivalGeneratorConfig,
   rng: Rng,
 ): Vehicle[] {
-  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares, peakWindows = DEFAULT_PEAKS } = config;
+  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares, peakWindows = DEFAULT_PEAKS, sources = [] } = config;
   const lambdaMax = lambdaBasePerMin * maxRateMultiplier(peakWindows);
   if (lambdaMax <= 0) return [];
 
@@ -47,7 +52,7 @@ export function generateArrivals(
     t += rng.exponential(lambdaMax);
     if (t >= horizonMin) break;
     if (rng.next() < arrivalRateAt(t, lambdaBasePerMin, peakWindows) / lambdaMax) {
-      arrivals.push(createVehicle(t, gridSizeMeters, typeShares, rng, arrivals.length));
+      arrivals.push(createVehicle(t, gridSizeMeters, typeShares, sources, rng, arrivals.length));
     }
   }
 
@@ -85,15 +90,18 @@ function createVehicle(
   t: SimTime,
   gridSize: number,
   shares: Record<VehicleType, number>,
+  sources: readonly VehicleSource[],
   rng: Rng,
   index: number,
 ): Vehicle {
+  const source = sources.length > 0 ? sources[Math.floor(rng.next() * sources.length)] : undefined;
   return {
     id: `V${index.toString().padStart(5, '0')}`,
     type: sampleType(shares, rng),
     priority: samplePriority(rng),
     arrivalTime: t,
-    location: [rng.next() * gridSize, rng.next() * gridSize],
+    location: source ? source.coordinates : [rng.next() * gridSize, rng.next() * gridSize],
+    source,
   };
 }
 
