@@ -8,6 +8,7 @@ import type { CarWash, SimConfig, SimTime, VehicleType, WashRequest } from '../d
 import type { Decision, DecisionContext, LoadBalancingAlgorithm, WashSnapshot } from '../algorithms/types.js';
 import type { Rng } from '../rng/mulberry32.js';
 import { expectedWait, effectiveMu } from '../math/erlang.js';
+import type { RoutePlanner } from '../routing/routePlanner.js';
 
 const HISTORY_WINDOW_MIN = 15;
 
@@ -42,6 +43,7 @@ export class Dispatcher {
     private readonly washes: readonly CarWash[],
     private readonly config: SimConfig,
     private readonly algorithm: LoadBalancingAlgorithm,
+    private readonly routePlanner?: RoutePlanner,
   ) {}
 
   /**
@@ -101,7 +103,7 @@ export class Dispatcher {
     state: Readonly<WashStateView>,
   ): WashSnapshot {
     const washState = state.getWash(wash.id);
-    const travelMin = this.computeTravelTime(wash, request.vehicle.location);
+    const travelMin = this.computeTravelTime(wash, request.vehicle);
     const history = state.getHistory(wash.id);
     const { lambda, muBar } = this.estimateLoad(wash, history, washState.inTransit);
 
@@ -124,7 +126,11 @@ export class Dispatcher {
     };
   }
 
-  private computeTravelTime(wash: CarWash, location: [number, number]): number {
+  private computeTravelTime(wash: CarWash, vehicle: WashRequest['vehicle']): number {
+    if (this.routePlanner) {
+      return this.routePlanner.plan(vehicle, wash).distanceMeters / ((this.config.avgSpeedKmh * 1000) / 60);
+    }
+    const location = vehicle.location;
     const [x1, y1] = location;
     const [x2, y2] = wash.coordinates;
     let distance: number;

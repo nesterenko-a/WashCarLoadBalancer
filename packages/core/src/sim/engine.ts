@@ -12,6 +12,7 @@ import { SimulationState } from './state.js';
 import { EventQueue } from './eventQueue.js';
 import { aggregateMetrics, type AggregateMetrics, type WashMetrics } from '../metrics/aggregates.js';
 import { buildSnapshot, type SimSnapshot } from './snapshots.js';
+import type { RoutePlanner } from '../routing/routePlanner.js';
 
 type Event =
   | { time: SimTime; type: 'ARRIVAL'; request: WashRequest }
@@ -35,6 +36,8 @@ export interface SimulationInput {
   arrivals: readonly Vehicle[];
   /** Записывать снапшоты для визуального playback. */
   recordSnapshots?: boolean;
+  /** Необязательный графовый планировщик: один источник времени пути для DES и UI. */
+  routePlanner?: RoutePlanner;
 }
 
 export function runSimulation(
@@ -131,7 +134,10 @@ export function runSimulation(
 
     const wash = washes.find(w => w.id === decision.washId);
     if (!wash) return;
-    const travelMin = computeTravelTime(wash.coordinates, request.vehicle.location, config);
+    request.route = input.routePlanner?.plan(request.vehicle, wash);
+    const travelMin = request.route
+      ? request.route.distanceMeters / ((config.avgSpeedKmh * 1000) / 60)
+      : computeTravelTime(wash.coordinates, request.vehicle.location, config);
 
     request.targetWash = decision.washId;
     request.assignedAt = now;

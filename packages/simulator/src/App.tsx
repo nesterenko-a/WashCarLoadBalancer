@@ -5,7 +5,7 @@
  * после реализации в core, чтобы UI не имитировал несуществующую функциональность.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createAlgorithm, Dispatcher, generateArrivals, mulberry32, runSimulation, type CarWash, type SimConfig, type SimSnapshot, type SimulationResult, type VehicleSource, type VehicleType } from '@loadbalancer/core';
+import { createAlgorithm, createRoadGraphPlanner, Dispatcher, generateArrivals, mulberry32, runSimulation, type CarWash, type RoadGraph, type SimConfig, type SimSnapshot, type SimulationResult, type VehicleSource, type VehicleType } from '@loadbalancer/core';
 import './App.css';
 
 const WASHES: CarWash[] = [
@@ -20,6 +20,18 @@ const SOURCES: VehicleSource[] = [
   { id: 'shop_1', name: 'Цех №1', kind: 'workshop', coordinates: [1250, 700] },
   { id: 'shop_2', name: 'Цех №2', kind: 'workshop', coordinates: [4850, 700] },
 ];
+const ROAD_GRAPH: RoadGraph = {
+  nodes: [
+    ...SOURCES.map(source => ({ id: source.id, coordinates: source.coordinates })),
+    { id: 'north', coordinates: [3050, 1650] }, { id: 'center', coordinates: [3050, 3100] },
+    { id: 'wash_a', coordinates: [1100, 1900] }, { id: 'wash_b', coordinates: [4750, 1900] }, { id: 'wash_e', coordinates: [4550, 4400] },
+  ],
+  edges: [
+    { from: 'entrance', to: 'center' }, { from: 'shop_1', to: 'north' }, { from: 'shop_2', to: 'north' },
+    { from: 'north', to: 'center' }, { from: 'north', to: 'wash_a' }, { from: 'north', to: 'wash_b' }, { from: 'center', to: 'wash_e' },
+  ],
+};
+const routePlanner = createRoadGraphPlanner(ROAD_GRAPH);
 const algorithms = ['random', 'jsq', 'weighted_jsq'] as const;
 type Algorithm = typeof algorithms[number];
 const labels: Record<Algorithm, string> = { random: 'Random', jsq: 'JSQ — Shortest Queue', weighted_jsq: 'Weighted JSQ' };
@@ -28,7 +40,7 @@ function formatTime(minutes: number) { const h = Math.floor(minutes / 60); const
 function run(seed: number, algorithm: Algorithm, lambda: number, horizon: number) {
   const config: SimConfig = { seed, algorithm, distanceMetric: 'manhattan', avgSpeedKmh: 20, timeScale: 1 };
   const arrivals = generateArrivals({ lambdaBasePerMin: lambda, horizonMin: horizon, gridSizeMeters: 6000, typeShares: shares, sources: SOURCES }, mulberry32(seed));
-  return runSimulation({ washes: WASHES, config, arrivals, recordSnapshots: true }, (w, c) => new Dispatcher(w, c, createAlgorithm(c.algorithm)));
+  return runSimulation({ washes: WASHES, config, arrivals, recordSnapshots: true, routePlanner }, (w, c) => new Dispatcher(w, c, createAlgorithm(c.algorithm), routePlanner));
 }
 function getSnapshot(result: SimulationResult, time: number) { return result.snapshots.reduce<SimSnapshot | undefined>((last, value) => value.time <= time ? value : last, undefined); }
 /**
@@ -71,7 +83,7 @@ function Field({ label, value, children }: { label: string; value: string; child
 function Metric({ text, value }: { text: string; value: string }) { return <div className="metric"><span>{text}</span><b>{value}</b></div>; }
 function Bar({ label, value, color }: { label: string; value: number; color: string }) { return <div className="bar"><span>{label}</span><div><i style={{ width: `${Math.min(value, 1) * 100}%`, background: color }}/></div><b>{value.toFixed(2)}</b></div>; }
 function Legend() { return <div className="legend">{WASHES.map(w => <span key={w.id}><i style={{ background: colors[w.id] }}/>{w.name.at(-1)}</span>)}</div>; }
-function Map({ snapshot, visibility }: { snapshot?: SimSnapshot; visibility: Record<'roads' | 'posts' | 'queues' | 'values', boolean> }) { return <div className="factory"><div className="river"/>{visibility.roads && <><div className="road horizontal"/><div className="road diagonal"/><div className="roundabout"/></>}<div className="main-road">ОСНОВНАЯ ДОРОГА</div>{SOURCES.map((source, index) => <div className={'source source-' + index} key={source.id}><b>{source.kind === 'entrance' ? '↥' : '▰'} {source.name}</b><small>{source.kind === 'entrance' ? 'поток снаружи' : 'внутренний поток'}</small></div>)}{WASHES.map((wash, index) => <Wash key={wash.id} wash={wash} state={snapshot?.washes.find(s => s.washId === wash.id)} color={colors[wash.id]} pos={index} visibility={visibility}/>)}</div>; }
+function Map({ snapshot, visibility }: { snapshot?: SimSnapshot; visibility: Record<'roads' | 'posts' | 'queues' | 'values', boolean> }) { return <div className="factory"><div className="river"/>{visibility.roads && <><div className="road horizontal"/><div className="road diagonal"/><div className="roundabout"/></>}<div className="main-road">ОСНОВНАЯ ДОРОГА</div>{SOURCES.map((source, index) => <div className={'source source-' + index} key={source.id}><b>{source.kind === 'entrance' ? '↥' : '▰'} {source.name}</b><small>{source.kind === 'entrance' ? 'поток снаружи' : 'внутренний поток'}</small></div>)}{snapshot?.vehicles.filter(vehicle => vehicle.phase === 'transit').map(vehicle => <i key={vehicle.id} aria-label="Автомобиль в пути" style={{ position: 'absolute', zIndex: 4, width: 23, height: 12, borderRadius: 5, background: '#2879df', border: '2px solid #fff', boxShadow: '0 2px 5px #0008', left: vehicle.location[0] / 60 + '%', top: vehicle.location[1] / 60 + '%' }}/>) }{WASHES.map((wash, index) => <Wash key={wash.id} wash={wash} state={snapshot?.washes.find(s => s.washId === wash.id)} color={colors[wash.id]} pos={index} visibility={visibility}/>)}</div>; }
 function Wash({ wash, state, color, pos, visibility }: { wash: CarWash; state?: SimSnapshot['washes'][number]; color: string; pos: number; visibility: Record<'roads' | 'posts' | 'queues' | 'values', boolean> }) { const rho = state?.rho ?? 0; return <article className={`wash wash-${pos}`} style={{ '--wash': color } as React.CSSProperties}><header><b>▥ &nbsp;{wash.name}</b><span>Посты (c): {wash.posts}</span></header><div className="wash-body">{visibility.queues && <div className="queue"><b>Очередь ({state?.queueLength ?? 0})</b><div>{Array.from({ length: Math.min(state?.queueLength ?? 0, 6) }, (_, i) => <i key={i}/>)}</div></div>}{visibility.posts && <div className="posts"><b>Посты</b><div>{Array.from({ length: wash.posts }, (_, i) => <i key={i} className={i < (state?.busyPosts ?? 0) ? 'busy' : ''}/>)}</div></div>}{visibility.values && <div className="stats"><span>μ<b>{(60 / wash.serviceTimeMin.sedan).toFixed(1)}</b><small>маш/ч</small></span><span>λ<b>{(rho * wash.posts * 60 / wash.serviceTimeMin.sedan).toFixed(1)}</b><small>маш/ч</small></span><span>ρ<b className={rho > .9 ? 'danger' : ''}>{rho.toFixed(2)}</b></span><span title="Визуальная оценка, не Erlang C"><b>{visualWait(wash, state).toFixed(1)}</b><small>Wq*</small></span></div>}</div></article>; }
 function Table({ result, snapshot }: { result: SimulationResult; snapshot?: SimSnapshot }) { return <section className="table-panel"><h2>Сводная таблица по автомойкам</h2><table><thead><tr><th>Мойка</th><th>Посты (c)</th><th>μ (маш/ч)</th><th>λ (маш/ч)</th><th>ρ</th><th>Wq* (мин)</th><th>Очередь</th><th>Обслужено</th></tr></thead><tbody>{WASHES.map(w => { const s = snapshot?.washes.find(x => x.washId === w.id); return <tr key={w.id}><td><i className="badge" style={{ background: colors[w.id] }}>{w.name.at(-1)}</i></td><td>{w.posts}</td><td>{(60 / w.serviceTimeMin.sedan).toFixed(1)}</td><td>{((s?.rho ?? 0) * w.posts * 60 / w.serviceTimeMin.sedan).toFixed(1)}</td><td>{(s?.rho ?? 0).toFixed(2)}</td><td title="Визуальная оценка, не Erlang C">{visualWait(w, s).toFixed(1)}</td><td>{s?.queueLength ?? 0}</td><td>{result.washMetrics[w.id]?.completed ?? 0}</td></tr>; })}</tbody></table></section>; }
 function Decision({ result, time }: { result: SimulationResult; time: number }) {

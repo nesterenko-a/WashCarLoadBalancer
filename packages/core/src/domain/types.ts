@@ -66,6 +66,19 @@ export interface WashRequest {
   arrivedAt?: SimTime; // прибытие на мойку
   startedAt?: SimTime; // начало мойки
   completedAt?: SimTime; // завершение
+  /** Маршрут по графу дорог, рассчитанный после выбора мойки. */
+  route?: RoutePlan;
+}
+
+export interface RoutePoint {
+  id: string;
+  coordinates: [x: number, y: number];
+}
+
+/** Результат RoutePlanner; distanceMeters участвует и в времени пути, и в playback. */
+export interface RoutePlan {
+  points: RoutePoint[];
+  distanceMeters: number;
 }
 
 export interface WashState {

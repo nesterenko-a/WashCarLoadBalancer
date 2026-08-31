@@ -106,16 +106,35 @@ function buildVehicleSnapshot(
   }
 
   // В пути: интерполяция от точки появления к мойке
+  const route = request.route;
   const start = vehicle.location;
   const end = wash.coordinates;
   const assignedAt = request.assignedAt;
   const travelEnd = request.arrivedAt ?? time;
   const travelDuration = Math.max(travelEnd - assignedAt, 1e-6);
   const progress = Math.min(Math.max((time - assignedAt) / travelDuration, 0), 1);
-  const location: [number, number] = [
+  const location = route ? interpolateRoute(route.points, progress) : [
     start[0] + (end[0] - start[0]) * progress,
     start[1] + (end[1] - start[1]) * progress,
-  ];
+  ] as [number, number];
 
   return { id: request.id, type: vehicle.type, priority: vehicle.priority, phase: 'transit', location, targetWashId: request.targetWash, sourceId: vehicle.source?.id };
+}
+
+function interpolateRoute(points: readonly { coordinates: [number, number] }[], progress: number): [number, number] {
+  if (points.length < 2) return points[0]?.coordinates ?? [0, 0];
+  const lengths = points.slice(1).map((point, index) => Math.hypot(point.coordinates[0] - points[index]!.coordinates[0], point.coordinates[1] - points[index]!.coordinates[1]));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  let remaining = progress * total;
+  for (let i = 0; i < lengths.length; i++) {
+    const length = lengths[i]!;
+    if (remaining <= length || i === lengths.length - 1) {
+      const from = points[i]!.coordinates;
+      const to = points[i + 1]!.coordinates;
+      const part = length > 0 ? remaining / length : 0;
+      return [from[0] + (to[0] - from[0]) * part, from[1] + (to[1] - from[1]) * part];
+    }
+    remaining -= length;
+  }
+  return points[points.length - 1]!.coordinates;
 }

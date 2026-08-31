@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Dispatcher,
   createAlgorithm,
+  createRoadGraphPlanner,
   effectiveMu,
   erlangC,
   generateArrivals,
@@ -105,6 +106,30 @@ describe('Источники заявок', () => {
     expect(first.length).toBeGreaterThan(0);
     expect(first.map(v => v.source?.id)).toEqual(second.map(v => v.source?.id));
     expect(first.every(v => v.source !== undefined && v.location === v.source.coordinates)).toBe(true);
+  });
+});
+
+describe('RoutePlanner', () => {
+  it('выбирает кратчайший путь по рёбрам графа, а не ближайшую по прямой мойку', () => {
+    const planner = createRoadGraphPlanner({
+      nodes: [
+        { id: 'shop_1', coordinates: [0, 0] },
+        { id: 'junction', coordinates: [0, 10] },
+        { id: 'wash_a', coordinates: [10, 0] },
+        { id: 'wash_b', coordinates: [0, 20] },
+      ],
+      edges: [
+        { from: 'shop_1', to: 'junction', distanceMeters: 10 },
+        { from: 'junction', to: 'wash_b', distanceMeters: 10 },
+        { from: 'shop_1', to: 'wash_a', distanceMeters: 100 },
+      ],
+    });
+    const vehicle = { id: 'V1', type: 'sedan' as const, priority: 'normal' as const, arrivalTime: 0, location: [0, 0] as [number, number], source: { id: 'shop_1', name: 'Цех №1', kind: 'workshop' as const, coordinates: [0, 0] as [number, number] } };
+    const wash = { ...WASHES[1]!, id: 'wash_b', coordinates: [0, 20] as [number, number] };
+
+    const route = planner.plan(vehicle, wash);
+    expect(route.distanceMeters).toBe(20);
+    expect(route.points.map(point => point.id)).toEqual(['shop_1', 'junction', 'wash_b']);
   });
 });
 
