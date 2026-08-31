@@ -128,10 +128,7 @@ export class Dispatcher {
     const { lambda, muBar } = this.estimateLoad(wash, history, washState.inTransit);
 
     const rho = Math.min(lambda / (wash.posts * muBar), 0.9999);
-    const expectedWaitMin =
-      lambda > 0 && wash.posts * muBar > lambda
-        ? expectedWait(lambda, muBar, wash.posts)
-        : 0;
+    const expectedWaitMin = lambda > 0 ? expectedWait(lambda, muBar, wash.posts) : 0;
 
     return {
       washId: wash.id,

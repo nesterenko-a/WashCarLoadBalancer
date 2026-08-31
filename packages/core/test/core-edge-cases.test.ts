@@ -323,6 +323,7 @@ describe('Snapshot-рекордер', () => {
     expect(result.snapshots[0]!.time).toBe(0);
     const first = result.snapshots[0]!;
     expect(first.washes).toHaveLength(WASHES.length);
+    expect(first.washes.every(wash => Number.isFinite(wash.currentLambda) && Number.isFinite(wash.expectedWaitMin))).toBe(true);
     expect(first.vehicles.length).toBe(result.metrics.totalRequests);
   });
 

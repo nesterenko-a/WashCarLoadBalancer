@@ -5,6 +5,7 @@
  */
 
 import type { CarWash, SimTime, WashRequest } from '../domain/types.js';
+import { effectiveMu, expectedWait } from '../math/erlang.js';
 
 export interface WashSnapshotData {
   washId: string;
@@ -15,6 +16,8 @@ export interface WashSnapshotData {
   busyPosts: number;
   inTransit: number;
   rho: number;
+  currentLambda: number;
+  expectedWaitMin: number;
 }
 
 export type VehiclePhase = 'future' | 'arrival' | 'transit' | 'queued' | 'busy' | 'done';
@@ -42,6 +45,7 @@ export function buildSnapshot(
   state: {
     getWashView(id: string): { queue: readonly WashRequest[]; busyPosts: number; inTransit: number };
     getMetrics(id: string): { totalBusyTime: number; lastUpdateTime: number };
+    getHistory(id: string): { times: number[]; types: ('sedan' | 'truck' | 'heavy_truck' | 'bus')[] };
   },
   requestsById: ReadonlyMap<string, WashRequest>,
 ): SimSnapshot {
@@ -52,6 +56,13 @@ export function buildSnapshot(
     const view = state.getWashView(wash.id);
     const metrics = state.getMetrics(wash.id);
     const rho = metrics.totalBusyTime / (wash.posts * denom);
+    const history = state.getHistory(wash.id);
+    const counts = { sedan: 0, truck: 0, heavy_truck: 0, bus: 0 };
+    for (const type of history.types) counts[type]++;
+    const historyCount = history.types.length;
+    const shares = historyCount > 0 ? { sedan: counts.sedan / historyCount, truck: counts.truck / historyCount, heavy_truck: counts.heavy_truck / historyCount, bus: counts.bus / historyCount } : { sedan: .25, truck: .25, heavy_truck: .25, bus: .25 };
+    const muBar = effectiveMu(wash.serviceTimeMin, shares);
+    const currentLambda = (history.times.length + view.inTransit) / 15;
     washSnapshots.push({
       washId: wash.id,
       name: wash.name,
@@ -61,6 +72,8 @@ export function buildSnapshot(
       busyPosts: view.busyPosts,
       inTransit: view.inTransit,
       rho,
+      currentLambda,
+      expectedWaitMin: currentLambda > 0 ? expectedWait(currentLambda, muBar, wash.posts) : 0,
     });
   }
 
