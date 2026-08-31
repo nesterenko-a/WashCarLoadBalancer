@@ -36,6 +36,11 @@ export interface SimulationInput {
   arrivals: readonly Vehicle[];
   /** Записывать снапшоты для визуального playback. */
   recordSnapshots?: boolean;
+  /**
+   * Минимальный шаг между кадрами playback. DES всё равно обрабатывает каждое
+   * событие; ограничивается лишь объём данных для визуального симулятора.
+   */
+  snapshotIntervalMin?: number;
   /** Необязательный графовый планировщик: один источник времени пути для DES и UI. */
   routePlanner?: RoutePlanner;
 }
@@ -53,10 +58,13 @@ export function runSimulation(
   const decisions: DecisionRecord[] = [];
   const snapshots: SimSnapshot[] = [];
   const shouldRecord = input.recordSnapshots ?? false;
+  const snapshotInterval = input.snapshotIntervalMin ?? 0;
+  let lastSnapshotTime = -Infinity;
 
-  function recordSnapshot(): void {
-    if (shouldRecord) {
+  function recordSnapshot(force = false): void {
+    if (shouldRecord && (force || clock - lastSnapshotTime >= snapshotInterval)) {
       snapshots.push(buildSnapshot(clock, washes, state, requestsById));
+      lastSnapshotTime = clock;
     }
   }
 
@@ -76,7 +84,7 @@ export function runSimulation(
   let clock: SimTime = 0;
   const simEnd = arrivals.length > 0 ? Math.max(...arrivals.map(v => v.arrivalTime)) + 60 * 24 : 0;
 
-  recordSnapshot();
+  recordSnapshot(true);
 
   while (queue.length > 0 && clock < simEnd) {
     const event = queue.pop();
@@ -105,7 +113,7 @@ export function runSimulation(
   state.updateMetrics(clock);
   // Финальный снапшот только если с момента последнего события прошло заметное время
   if (snapshots.length === 0 || (snapshots[snapshots.length - 1] as SimSnapshot).time !== clock) {
-    recordSnapshot();
+    recordSnapshot(true);
   }
 
   return {
