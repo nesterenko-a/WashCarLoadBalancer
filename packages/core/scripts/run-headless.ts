@@ -21,7 +21,7 @@ const WASHES: CarWash[] = [
     name: 'Мойка A',
     coordinates: [1000, 2000],
     posts: 3,
-    serviceTimeMin: { sedan: 8, truck: 25, bus: 40 },
+    serviceTimeMin: { sedan: 8, truck: 25, heavy_truck: 38, bus: 40 },
     supportedTypes: ['sedan', 'truck'],
     isActive: true,
     schedule: { openHour: 0, closeHour: 24 },
@@ -31,8 +31,8 @@ const WASHES: CarWash[] = [
     name: 'Мойка B',
     coordinates: [5000, 3000],
     posts: 4,
-    serviceTimeMin: { sedan: 10, truck: 30, bus: 40 },
-    supportedTypes: ['sedan', 'truck', 'bus'],
+    serviceTimeMin: { sedan: 10, truck: 30, heavy_truck: 45, bus: 40 },
+    supportedTypes: ['sedan', 'truck', 'heavy_truck', 'bus'],
     isActive: true,
     schedule: { openHour: 0, closeHour: 24 },
   },
@@ -41,7 +41,7 @@ const WASHES: CarWash[] = [
     name: 'Мойка C',
     coordinates: [2000, 5000],
     posts: 2,
-    serviceTimeMin: { sedan: 6, truck: 20, bus: 35 },
+    serviceTimeMin: { sedan: 6, truck: 20, heavy_truck: 32, bus: 35 },
     supportedTypes: ['sedan'],
     isActive: true,
     schedule: { openHour: 0, closeHour: 24 },
@@ -49,9 +49,10 @@ const WASHES: CarWash[] = [
 ];
 
 const TYPE_SHARES: Record<VehicleType, number> = {
-  sedan: 0.6,
-  truck: 0.3,
-  bus: 0.1,
+  sedan: 0.55,
+  truck: 0.22,
+  heavy_truck: 0.08,
+  bus: 0.15,
 };
 
 function makeConfig(algorithm: string, seed: number): SimConfig {

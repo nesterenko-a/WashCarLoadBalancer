@@ -16,7 +16,7 @@ import {
 import { EventQueue } from '../src/sim/eventQueue.js';
 import { SimulationState } from '../src/sim/state.js';
 
-const TYPE_SHARES: Record<VehicleType, number> = { sedan: 0.6, truck: 0.3, bus: 0.1 };
+const TYPE_SHARES: Record<VehicleType, number> = { sedan: 0.55, truck: 0.22, heavy_truck: 0.08, bus: 0.15 };
 
 function createArrivals(seed: number) {
   return generateArrivals(
@@ -31,7 +31,7 @@ const WASHES: CarWash[] = [
     name: 'Мойка A',
     coordinates: [1000, 2000],
     posts: 3,
-    serviceTimeMin: { sedan: 8, truck: 25, bus: 40 },
+    serviceTimeMin: { sedan: 8, truck: 25, heavy_truck: 38, bus: 40 },
     supportedTypes: ['sedan', 'truck'],
     isActive: true,
     schedule: { openHour: 0, closeHour: 24 },
@@ -41,8 +41,8 @@ const WASHES: CarWash[] = [
     name: 'Мойка B',
     coordinates: [5000, 3000],
     posts: 4,
-    serviceTimeMin: { sedan: 10, truck: 30, bus: 40 },
-    supportedTypes: ['sedan', 'truck', 'bus'],
+    serviceTimeMin: { sedan: 10, truck: 30, heavy_truck: 45, bus: 40 },
+    supportedTypes: ['sedan', 'truck', 'heavy_truck', 'bus'],
     isActive: true,
     schedule: { openHour: 0, closeHour: 24 },
   },
@@ -154,7 +154,7 @@ describe('EventQueue', () => {
 
 describe('Erlang C', () => {
   it('effectiveMu бросает при нулевом среднем времени обслуживания', () => {
-    expect(() => effectiveMu({ sedan: 0, truck: 0, bus: 0 }, { sedan: 0.5, truck: 0.3, bus: 0.2 })).toThrow();
+    expect(() => effectiveMu({ sedan: 0, truck: 0, heavy_truck: 0, bus: 0 }, { sedan: 0.5, truck: 0.2, heavy_truck: 0.1, bus: 0.2 })).toThrow();
   });
 
   it('erlangC покрывает ветку rho >= 1', () => {
@@ -184,7 +184,7 @@ describe('Диспетчер', () => {
     const disp = new Dispatcher(WASHES, makeConfig('jsq', 1), createAlgorithm('jsq'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const shares = (disp as any).computeShares([]);
-    expect(shares).toEqual({ sedan: 0, truck: 0, bus: 0 });
+    expect(shares).toEqual({ sedan: 0, truck: 0, heavy_truck: 0, bus: 0 });
   });
 
   it('неактивные и несовместимые мойки отфильтровываются и логируются', () => {

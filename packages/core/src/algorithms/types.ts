@@ -43,7 +43,7 @@ export interface LoadBalancingAlgorithm {
  */
 export function meanServiceTimeMin(snapshot: WashSnapshot): number {
   const t = snapshot.serviceTimeMin;
-  return (t.sedan + t.truck + t.bus) / 3;
+  return (t.sedan + t.truck + t.heavy_truck + t.bus) / 4;
 }
 
 /** Аргмин по score; при равенстве — первый кандидат (детерминизм). */

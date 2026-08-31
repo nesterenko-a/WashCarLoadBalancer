@@ -6,13 +6,14 @@
 /** Симуляционное время: минуты от начала прогона. */
 export type SimTime = number;
 
-export type VehicleType = 'sedan' | 'truck' | 'bus';
+export type VehicleType = 'sedan' | 'truck' | 'heavy_truck' | 'bus';
 export type Priority = 'urgent' | 'normal' | 'scheduled';
 
 /** T_service по типам ТС (мин). */
 export interface ServiceTimes {
   sedan: number;
   truck: number;
+  heavy_truck: number;
   bus: number;
 }
 

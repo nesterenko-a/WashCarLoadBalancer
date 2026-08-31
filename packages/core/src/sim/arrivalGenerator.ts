@@ -108,7 +108,7 @@ function createVehicle(
 function sampleType(shares: Record<VehicleType, number>, rng: Rng): VehicleType {
   const r = rng.next();
   let acc = 0;
-  for (const type of ['sedan', 'truck', 'bus'] as VehicleType[]) {
+  for (const type of ['sedan', 'truck', 'heavy_truck', 'bus'] as VehicleType[]) {
     acc += shares[type];
     if (r < acc) return type;
   }

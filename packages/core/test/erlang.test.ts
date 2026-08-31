@@ -37,12 +37,12 @@ describe('erlangC', () => {
 
 describe('effectiveMu', () => {
   it('гармоническое среднее по долям типов', () => {
-    const mu = effectiveMu({ sedan: 8, truck: 25, bus: 40 }, { sedan: 0.5, truck: 0.3, bus: 0.2 });
-    const expected = 1 / (0.5 * 8 + 0.3 * 25 + 0.2 * 40);
+    const mu = effectiveMu({ sedan: 8, truck: 25, heavy_truck: 35, bus: 40 }, { sedan: 0.5, truck: 0.2, heavy_truck: 0.1, bus: 0.2 });
+    const expected = 1 / (0.5 * 8 + 0.2 * 25 + 0.1 * 35 + 0.2 * 40);
     expect(mu).toBeCloseTo(expected, 10);
   });
 
   it('бросает при нулевой сумме долей', () => {
-    expect(() => effectiveMu({ sedan: 8, truck: 25, bus: 40 }, { sedan: 0, truck: 0, bus: 0 })).toThrow();
+    expect(() => effectiveMu({ sedan: 8, truck: 25, heavy_truck: 35, bus: 40 }, { sedan: 0, truck: 0, heavy_truck: 0, bus: 0 })).toThrow();
   });
 });

@@ -177,17 +177,18 @@ export class Dispatcher {
 
   private meanServiceTime(wash: CarWash): number {
     const t = wash.serviceTimeMin;
-    return (t.sedan + t.truck + t.bus) / 3;
+    return (t.sedan + t.truck + t.heavy_truck + t.bus) / 4;
   }
 
-  private computeShares(types: VehicleType[]): { sedan: number; truck: number; bus: number } {
+  private computeShares(types: VehicleType[]): { sedan: number; truck: number; heavy_truck: number; bus: number } {
     const n = types.length;
-    if (n === 0) return { sedan: 0, truck: 0, bus: 0 };
-    const counts = { sedan: 0, truck: 0, bus: 0 };
+    if (n === 0) return { sedan: 0, truck: 0, heavy_truck: 0, bus: 0 };
+    const counts = { sedan: 0, truck: 0, heavy_truck: 0, bus: 0 };
     for (const type of types) counts[type]++;
     return {
       sedan: counts.sedan / n,
       truck: counts.truck / n,
+      heavy_truck: counts.heavy_truck / n,
       bus: counts.bus / n,
     };
   }

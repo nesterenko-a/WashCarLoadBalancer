@@ -38,16 +38,17 @@ export function expectedWait(lambda: number, mu: number, c: number): number {
  * serviceTimeMin — средние времена мойки (мин), shares — доли типов (сумма ≈ 1).
  */
 export function effectiveMu(
-  serviceTimeMin: { sedan: number; truck: number; bus: number },
-  shares: { sedan: number; truck: number; bus: number },
+  serviceTimeMin: { sedan: number; truck: number; heavy_truck: number; bus: number },
+  shares: { sedan: number; truck: number; heavy_truck: number; bus: number },
 ): number {
-  const totalShare = shares.sedan + shares.truck + shares.bus;
+  const totalShare = shares.sedan + shares.truck + shares.heavy_truck + shares.bus;
   if (totalShare <= 0) {
     throw new Error('effectiveMu: сумма долей типов должна быть > 0');
   }
   const meanService =
     (shares.sedan * serviceTimeMin.sedan +
       shares.truck * serviceTimeMin.truck +
+      shares.heavy_truck * serviceTimeMin.heavy_truck +
       shares.bus * serviceTimeMin.bus) /
     totalShare;
   if (meanService <= 0) {

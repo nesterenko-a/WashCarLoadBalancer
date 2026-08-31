@@ -21,7 +21,7 @@ export type VehiclePhase = 'future' | 'arrival' | 'transit' | 'queued' | 'busy' 
 
 export interface VehicleSnapshot {
   id: string;
-  type: 'sedan' | 'truck' | 'bus';
+  type: 'sedan' | 'truck' | 'heavy_truck' | 'bus';
   priority: 'urgent' | 'normal' | 'scheduled';
   phase: VehiclePhase;
   location: [number, number];
