@@ -172,6 +172,14 @@ describe('SimulationState', () => {
 });
 
 describe('Диспетчер', () => {
+  it('сохраняет детали кандидатов для объяснения решения', () => {
+    const result = run(makeConfig('weighted_jsq', 17));
+    const decision = result.decisions.find(item => item.chosenWash !== null);
+    expect(decision).toBeDefined();
+    expect(decision!.candidates.length).toBeGreaterThan(0);
+    expect(decision!.candidates.every(candidate => Number.isFinite(candidate.travelTimeMin) && Number.isFinite(candidate.score))).toBe(true);
+  });
+
   it('computeShares корректно обрабатывает пустой массив типов', () => {
     const disp = new Dispatcher(WASHES, makeConfig('jsq', 1), createAlgorithm('jsq'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

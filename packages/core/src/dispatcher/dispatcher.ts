@@ -27,7 +27,17 @@ export interface DecisionRecord {
   scores: Record<string, number>;
   /** Score выбранной мойки: удобен для отображения объяснения решения в UI. */
   chosenScore: number | null;
+  /** Снимок расчёта по каждому кандидату для объяснения решения без пересчёта в UI. */
+  candidates: DecisionCandidateRecord[];
   rejectedReason: string;
+}
+
+export interface DecisionCandidateRecord {
+  washId: string;
+  travelTimeMin: number;
+  expectedWaitMin: number;
+  rho: number;
+  score: number;
 }
 
 /**
@@ -85,6 +95,13 @@ export class Dispatcher {
       chosenWash: decision.washId,
       scores: decision.scores,
       chosenScore: decision.washId === null ? null : decision.scores[decision.washId] ?? null,
+      candidates: candidates.map(candidate => ({
+        washId: candidate.washId,
+        travelTimeMin: candidate.travelTimeMin,
+        expectedWaitMin: candidate.expectedWaitMin,
+        rho: candidate.rho,
+        score: decision.scores[candidate.washId] ?? 0,
+      })),
       rejectedReason: rejectReasons.join('; '),
     };
 
