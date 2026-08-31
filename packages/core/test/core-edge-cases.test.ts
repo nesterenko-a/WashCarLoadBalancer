@@ -251,6 +251,20 @@ describe('Алгоритмы', () => {
     expect(createAlgorithm('power_of_two').decide({ ...ctx, rng: mulberry32(42) })).toEqual(decision);
   });
 
+  it('Round Robin циклически выбирает доступные мойки', () => {
+    const algorithm = createAlgorithm('round_robin');
+    const ctx = {
+      request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan' as const, priority: 'normal' as const, arrivalTime: 0, location: [0, 0] as [number, number] }, targetWash: null, algorithm: 'round_robin', assignedAt: 0 },
+      candidates: [
+        { washId: 'a', queueLength: 0, busyPosts: 0, totalPosts: 1, inTransit: 0, serviceTimeMin: WASHES[0]!.serviceTimeMin, rho: 0, expectedWaitMin: 0, travelTimeMin: 1 },
+        { washId: 'b', queueLength: 0, busyPosts: 0, totalPosts: 1, inTransit: 0, serviceTimeMin: WASHES[1]!.serviceTimeMin, rho: 0, expectedWaitMin: 0, travelTimeMin: 1 },
+      ],
+      now: 0,
+      rng: mulberry32(1),
+    };
+    expect([algorithm.decide(ctx).washId, algorithm.decide(ctx).washId, algorithm.decide(ctx).washId]).toEqual(['a', 'b', 'a']);
+  });
+
   it('State-Aware Score штрафует перегруженную мойку', () => {
     const decision = createAlgorithm('state_aware').decide({
       request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan', priority: 'normal', arrivalTime: 0, location: [0, 0] }, targetWash: null, algorithm: 'state_aware', assignedAt: 0 },
@@ -265,7 +279,7 @@ describe('Алгоритмы', () => {
   });
 
   it('алгоритмы возвращают null при пустом списке кандидатов', () => {
-    for (const name of ['random', 'jsq', 'weighted_jsq', 'power_of_two', 'state_aware']) {
+    for (const name of ['random', 'jsq', 'weighted_jsq', 'power_of_two', 'state_aware', 'round_robin']) {
       const algo = createAlgorithm(name);
       const decision = algo.decide({
         request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan', priority: 'normal', arrivalTime: 0, location: [0, 0] }, targetWash: null, algorithm: name, assignedAt: 0 },

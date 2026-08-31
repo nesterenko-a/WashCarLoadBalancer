@@ -36,10 +36,10 @@ const ROAD_GRAPH: RoadGraph = {
   ],
 };
 const routePlanner = createRoadGraphPlanner(ROAD_GRAPH);
-const algorithms = ['random', 'jsq', 'weighted_jsq', 'power_of_two', 'state_aware'] as const;
+const algorithms = ['random', 'round_robin', 'jsq', 'weighted_jsq', 'power_of_two', 'state_aware'] as const;
 type Algorithm = typeof algorithms[number];
 type ComparisonRuns = { scenarioKey: string; runs: Partial<Record<Algorithm, SimulationResult>> };
-const labels: Record<Algorithm, string> = { random: 'Random', jsq: 'JSQ — Shortest Queue', weighted_jsq: 'Weighted JSQ', power_of_two: 'Power of Two Choices', state_aware: 'State-Aware Score' };
+const labels: Record<Algorithm, string> = { random: 'Random', round_robin: 'Round Robin', jsq: 'JSQ — Shortest Queue', weighted_jsq: 'Weighted JSQ', power_of_two: 'Power of Two Choices', state_aware: 'State-Aware Score' };
 const colors: Record<string, string> = { wash_a: '#2879df', wash_b: '#39a967', wash_e: '#e64d58' };
 function formatTime(minutes: number) { const h = Math.floor(minutes / 60); const m = Math.floor(minutes % 60); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`; }
 function normaliseShares(shares: Record<VehicleType, number>): Record<VehicleType, number> { const total = Object.values(shares).reduce((sum, value) => sum + value, 0); return total > 0 ? { sedan: shares.sedan / total, truck: shares.truck / total, heavy_truck: shares.heavy_truck / total, bus: shares.bus / total } : DEFAULT_SHARES; }
@@ -88,7 +88,7 @@ export default function App() {
   const metrics = active?.metrics;
   return <div className="app">
     <header><h1>Симулятор распределения нагрузки между автомойками</h1><div className="header-controls">
-      <label>Балансировщик <select value={selected} onChange={e => { setSelected(e.target.value as Algorithm); setTime(0); }}><option value="jsq">{labels.jsq}</option><option value="weighted_jsq">{labels.weighted_jsq}</option><option value="power_of_two">{labels.power_of_two}</option><option value="state_aware">{labels.state_aware}</option><option value="random">{labels.random}</option><option disabled>Round Robin — скоро</option></select></label>
+      <label>Балансировщик <select value={selected} onChange={e => { setSelected(e.target.value as Algorithm); setTime(0); }}><option value="jsq">{labels.jsq}</option><option value="weighted_jsq">{labels.weighted_jsq}</option><option value="power_of_two">{labels.power_of_two}</option><option value="state_aware">{labels.state_aware}</option><option value="round_robin">{labels.round_robin}</option><option value="random">{labels.random}</option></select></label>
       <button className="primary" onClick={start}>▶ Запустить все</button><button onClick={startSelected}>▶ Запустить выбранный</button><button disabled={!active} onClick={() => setPlaying(v => !v)}>{playing ? '❚❚ Пауза' : '▶ Продолжить'}</button><button onClick={() => { setTime(0); setPlaying(false); }}>↻ Сброс</button>
     </div></header>
     <main><aside className="sidebar"><Panel title="Настройки симуляции">
