@@ -116,6 +116,19 @@ describe('Источники заявок', () => {
     expect(arrivals.length).toBeGreaterThan(0);
     expect(arrivals.every(vehicle => vehicle.priority === 'urgent')).toBe(true);
   });
+
+  it('генератор учитывает долю каждого источника', () => {
+    const sources: VehicleSource[] = [
+      { id: 'entrance', name: 'Въезд', kind: 'entrance', coordinates: [0, 0] },
+      { id: 'shop_1', name: 'Цех №1', kind: 'workshop', coordinates: [100, 0] },
+    ];
+    const arrivals = generateArrivals(
+      { lambdaBasePerMin: 1, horizonMin: 30, gridSizeMeters: 1000, typeShares: TYPE_SHARES, sources, sourceShares: { entrance: 1, shop_1: 0 } },
+      mulberry32(123),
+    );
+    expect(arrivals.length).toBeGreaterThan(0);
+    expect(arrivals.every(vehicle => vehicle.source?.id === 'entrance')).toBe(true);
+  });
 });
 
 describe('RoutePlanner', () => {
