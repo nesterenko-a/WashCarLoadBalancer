@@ -12,7 +12,7 @@ const WASHES: CarWash[] = [
   { id: 'wash_b', name: 'Мойка B', coordinates: [5200, 700], posts: 3, serviceTimeMin: { sedan: 10, truck: 30, heavy_truck: 45, bus: 40 }, supportedTypes: ['sedan', 'truck', 'heavy_truck', 'bus'], isActive: true, schedule: { openHour: 0, closeHour: 24 } },
   { id: 'wash_e', name: 'Мойка E', coordinates: [5200, 3800], posts: 5, serviceTimeMin: { sedan: 7, truck: 22, heavy_truck: 35, bus: 36 }, supportedTypes: ['sedan', 'truck', 'heavy_truck', 'bus'], isActive: true, schedule: { openHour: 0, closeHour: 24 } },
 ];
-const shares: Record<VehicleType, number> = { sedan: .55, truck: .22, heavy_truck: .08, bus: .15 };
+const DEFAULT_SHARES: Record<VehicleType, number> = { sedan: .55, truck: .22, heavy_truck: .08, bus: .15 };
 /** Источники отражают схему road.txt: въезд и два внутренних цеха. */
 const SOURCES: VehicleSource[] = [
   { id: 'entrance', name: 'Въезд с основной дороги', kind: 'entrance', coordinates: [3000, 5700] },
@@ -40,9 +40,10 @@ type Algorithm = typeof algorithms[number];
 const labels: Record<Algorithm, string> = { random: 'Random', jsq: 'JSQ — Shortest Queue', weighted_jsq: 'Weighted JSQ', power_of_two: 'Power of Two Choices', state_aware: 'State-Aware Score' };
 const colors: Record<string, string> = { wash_a: '#2879df', wash_b: '#39a967', wash_e: '#e64d58' };
 function formatTime(minutes: number) { const h = Math.floor(minutes / 60); const m = Math.floor(minutes % 60); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`; }
-function run(seed: number, algorithm: Algorithm, lambda: number, horizon: number, peaks: PeakWindow[], washes: CarWash[], algorithmWeights: ScoreWeights) {
+function normaliseShares(shares: Record<VehicleType, number>): Record<VehicleType, number> { const total = Object.values(shares).reduce((sum, value) => sum + value, 0); return total > 0 ? { sedan: shares.sedan / total, truck: shares.truck / total, heavy_truck: shares.heavy_truck / total, bus: shares.bus / total } : DEFAULT_SHARES; }
+function run(seed: number, algorithm: Algorithm, lambda: number, horizon: number, peaks: PeakWindow[], washes: CarWash[], algorithmWeights: ScoreWeights, vehicleShares: Record<VehicleType, number>) {
   const config: SimConfig = { seed, algorithm, distanceMetric: 'manhattan', avgSpeedKmh: 20, timeScale: 1, algorithmWeights };
-  const arrivals = generateArrivals({ lambdaBasePerMin: lambda, horizonMin: horizon, gridSizeMeters: 6000, typeShares: shares, sources: SOURCES, peakWindows: peaks }, mulberry32(seed));
+  const arrivals = generateArrivals({ lambdaBasePerMin: lambda, horizonMin: horizon, gridSizeMeters: 6000, typeShares: normaliseShares(vehicleShares), sources: SOURCES, peakWindows: peaks }, mulberry32(seed));
   return runSimulation({ washes, config, arrivals, recordSnapshots: true, snapshotIntervalMin: 5, routePlanner }, (w, c) => new Dispatcher(w, c, createAlgorithm(c.algorithm, c.algorithmWeights), routePlanner));
 }
 function getSnapshot(result: SimulationResult, time: number) { return result.snapshots.reduce<SimSnapshot | undefined>((last, value) => value.time <= time ? value : last, undefined); }
@@ -56,7 +57,7 @@ function visualWait(wash: CarWash, state?: SimSnapshot['washes'][number]) {
 
 export default function App() {
   const [seed, setSeed] = useState(42); const [lambda, setLambda] = useState(.5); const [horizon, setHorizon] = useState(1440);
-  const [peaks, setPeaks] = useState<PeakWindow[]>([{ startHour: 12, endHour: 13, factor: 3 }, { startHour: 17, endHour: 18, factor: 3 }]); const [algorithmWeights, setAlgorithmWeights] = useState<ScoreWeights>({ alpha: 1, beta: 1, gamma: .2, delta: 5, epsilon: 20 });
+  const [peaks, setPeaks] = useState<PeakWindow[]>([{ startHour: 12, endHour: 13, factor: 3 }, { startHour: 17, endHour: 18, factor: 3 }]); const [algorithmWeights, setAlgorithmWeights] = useState<ScoreWeights>({ alpha: 1, beta: 1, gamma: .2, delta: 5, epsilon: 20 }); const [vehicleShares, setVehicleShares] = useState<Record<VehicleType, number>>(DEFAULT_SHARES);
   const [washes, setWashes] = useState<CarWash[]>(WASHES);
   const [editingWashId, setEditingWashId] = useState<string | null>(null); const [washTab, setWashTab] = useState<'now' | 'history' | 'charts'>('now');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -69,12 +70,13 @@ export default function App() {
   const inspectedRequest = selectedVehicleId ? active?.requests.find(item => item.id === selectedVehicleId) : undefined;
   const inspectedDecision = inspectedRequest ? active?.decisions.find(item => item.requestId === inspectedRequest.id) : activeDecision;
   const focusRequest = inspectedRequest;
-  const start = () => { const next = {} as Record<Algorithm, SimulationResult>; algorithms.forEach(a => next[a] = run(seed, a, lambda, horizon, peaks, washes, algorithmWeights)); setSingleRun(null); setResults(next); setTime(0); setPlaying(true); };
-  const startSelected = () => { setResults(null); setSingleRun({ algorithm: selected, result: run(seed, selected, lambda, horizon, peaks, washes, algorithmWeights) }); setSelectedVehicleId(null); setTime(0); setPlaying(true); };
+  const start = () => { const next = {} as Record<Algorithm, SimulationResult>; algorithms.forEach(a => next[a] = run(seed, a, lambda, horizon, peaks, washes, algorithmWeights, vehicleShares)); setSingleRun(null); setResults(next); setTime(0); setPlaying(true); };
+  const startSelected = () => { setResults(null); setSingleRun({ algorithm: selected, result: run(seed, selected, lambda, horizon, peaks, washes, algorithmWeights, vehicleShares) }); setSelectedVehicleId(null); setTime(0); setPlaying(true); };
   const editingWash = washes.find(wash => wash.id === editingWashId);
   const updateWash = (id: string, update: Partial<CarWash>) => setWashes(current => current.map(wash => wash.id === id ? { ...wash, ...update } : wash));
   const updatePeak = (index: number, update: Partial<PeakWindow>) => setPeaks(current => current.map((peak, i) => i === index ? { ...peak, ...update } : peak));
   const updateWeight = (key: keyof ScoreWeights, value: number) => setAlgorithmWeights(current => ({ ...current, [key]: Math.max(0, value) }));
+  const updateVehicleShare = (type: VehicleType, percent: number) => setVehicleShares(current => ({ ...current, [type]: Math.max(0, percent) / 100 }));
   const inspectVehicle = (id: string) => { setSelectedVehicleId(id); setPlaying(false); };
   const animation = useRef<number>();
   useEffect(() => { if (!playing || !active) return; let last = performance.now(); const loop = (now: number) => { setTime(old => { const next = Math.min(maxTime, old + (now - last) / 1000 * speed); if (next === maxTime) setPlaying(false); return next; }); last = now; animation.current = requestAnimationFrame(loop); }; animation.current = requestAnimationFrame(loop); return () => { if (animation.current) cancelAnimationFrame(animation.current); }; }, [active, maxTime, playing, speed]);
@@ -89,6 +91,7 @@ export default function App() {
       <Field label="Seed сценария" value="одинаковый поток"><input type="number" value={seed} onChange={e => setSeed(Number(e.target.value))}/></Field>
       <Field label="Шаг воспроизведения" value={`${speed} мин/с`}><select value={speed} onChange={e => setSpeed(Number(e.target.value))}><option value="1">1 мин/с</option><option value="10">10 мин/с</option><option value="50">50 мин/с</option></select></Field>
       <Field label="Поток машин (λ)" value={`${(lambda * 60).toFixed(0)} машин/час`}><input className="range" type="range" min=".1" max="1.5" step=".1" value={lambda} onChange={e => setLambda(Number(e.target.value))}/></Field>
+      <div className="peak-editor"><b>Состав транспортного потока</b>{(['sedan', 'truck', 'heavy_truck', 'bus'] as VehicleType[]).map(type => <label key={type}>{({ sedan: 'Легковые', truck: 'Грузовые', heavy_truck: 'Тяжёлые', bus: 'Автобусы' })[type]}<input type="number" min="0" max="100" value={Math.round(vehicleShares[type] * 100)} onChange={event => updateVehicleShare(type, Number(event.target.value))}/><small>%</small></label>)}<small>Будет нормализовано при запуске: {(Object.values(vehicleShares).reduce((sum, value) => sum + value, 0) * 100).toFixed(0)}%.</small></div>
       <div className="peak-editor"><b>Пиковые периоды</b>{peaks.map((peak, index) => <label key={index}>Пик {index + 1}<input type="number" min="0" max="23" value={peak.startHour} onChange={e => updatePeak(index, { startHour: Number(e.target.value) })}/><span>—</span><input type="number" min="1" max="24" value={peak.endHour} onChange={e => updatePeak(index, { endHour: Number(e.target.value) })}/><small>×{peak.factor}</small></label>)}</div>
       {selected === 'state_aware' && <div className="peak-editor"><b>Веса State-Aware Score</b><small>Score = α·Wq + β·путь + γ·сервис + δ·ρ + ε·штраф</small>{([['alpha', 'α Ожидание'], ['beta', 'β Путь'], ['gamma', 'γ Сервис'], ['delta', 'δ Загрузка'], ['epsilon', 'ε Перегрузка']] as [keyof ScoreWeights, string][]).map(([key, label]) => <label key={key}>{label}<input type="number" min="0" step=".1" value={algorithmWeights[key] ?? 0} onChange={event => updateWeight(key, Number(event.target.value))}/></label>)}</div>}
       <label className="select-field">Тип потока<select defaultValue="poisson"><option value="poisson">Пуассоновский</option><option disabled>Равномерный — скоро</option><option disabled>Пиковый — скоро</option><option disabled>Исторические данные — скоро</option></select></label>
