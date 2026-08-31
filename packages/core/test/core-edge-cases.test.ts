@@ -169,6 +169,16 @@ describe('SimulationState', () => {
     expect(() => state.getHistory('unknown')).toThrow();
     expect(() => state.getMetrics('unknown')).toThrow();
   });
+
+  it('обслуживает срочные заявки раньше обычных и плановых, сохраняя FIFO внутри приоритета', () => {
+    const state = new SimulationState(WASHES);
+    const request = (id: string, priority: 'urgent' | 'normal' | 'scheduled') => ({ id, vehicle: { id, type: 'sedan' as const, priority, arrivalTime: 0, location: [0, 0] as [number, number] }, targetWash: 'wash_a', algorithm: 'jsq', assignedAt: 0 });
+    state.enqueue('wash_a', request('scheduled', 'scheduled'));
+    state.enqueue('wash_a', request('normal-1', 'normal'));
+    state.enqueue('wash_a', request('urgent', 'urgent'));
+    state.enqueue('wash_a', request('normal-2', 'normal'));
+    expect([state.dequeue('wash_a')?.id, state.dequeue('wash_a')?.id, state.dequeue('wash_a')?.id, state.dequeue('wash_a')?.id]).toEqual(['urgent', 'normal-1', 'normal-2', 'scheduled']);
+  });
 });
 
 describe('Диспетчер', () => {

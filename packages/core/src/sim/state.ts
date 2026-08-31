@@ -7,6 +7,7 @@
 import type { CarWash, SimTime, VehicleType, WashRequest } from '../domain/types.js';
 
 const HISTORY_WINDOW_MIN = 15;
+const PRIORITY_RANK = { urgent: 0, normal: 1, scheduled: 2 } as const;
 
 export interface WashRuntimeMetrics {
   totalBusyTime: number; // минуты · посты
@@ -73,7 +74,12 @@ export class SimulationState {
   enqueue(id: string, request: WashRequest): void {
     const w = this.washes.get(id);
     if (!w) throw new Error(`Unknown wash: ${id}`);
-    w.queue.push(request);
+    // Без preemption: уже начатая мойка не прерывается. При освобождении поста
+    // срочная заявка занимает место перед менее приоритетными, FIFO сохраняется
+    // внутри каждого класса приоритета.
+    const position = w.queue.findIndex(item => PRIORITY_RANK[item.vehicle.priority] > PRIORITY_RANK[request.vehicle.priority]);
+    if (position === -1) w.queue.push(request);
+    else w.queue.splice(position, 0, request);
   }
 
   dequeue(id: string): WashRequest | undefined {
