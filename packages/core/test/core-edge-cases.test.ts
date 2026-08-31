@@ -107,6 +107,15 @@ describe('Источники заявок', () => {
     expect(first.map(v => v.source?.id)).toEqual(second.map(v => v.source?.id));
     expect(first.every(v => v.source !== undefined && v.location === v.source.coordinates)).toBe(true);
   });
+
+  it('генератор учитывает заданное распределение приоритетов', () => {
+    const arrivals = generateArrivals(
+      { lambdaBasePerMin: 1, horizonMin: 30, gridSizeMeters: 1000, typeShares: TYPE_SHARES, priorityShares: { urgent: 1, normal: 0, scheduled: 0 } },
+      mulberry32(123),
+    );
+    expect(arrivals.length).toBeGreaterThan(0);
+    expect(arrivals.every(vehicle => vehicle.priority === 'urgent')).toBe(true);
+  });
 });
 
 describe('RoutePlanner', () => {

@@ -5,7 +5,7 @@
  */
 
 import type { Rng } from '../rng/mulberry32.js';
-import type { SimTime, Vehicle, VehicleSource, VehicleType } from '../domain/types.js';
+import type { Priority, SimTime, Vehicle, VehicleSource, VehicleType } from '../domain/types.js';
 
 export interface PeakWindow {
   startHour: number; // включительно
@@ -22,6 +22,8 @@ export interface ArrivalGeneratorConfig {
   gridSizeMeters: number;
   /** Доли типов ТС. */
   typeShares: Record<VehicleType, number>;
+  /** Доли приоритетов; по умолчанию 5% срочных, 80% обычных, 15% плановых. */
+  priorityShares?: Record<Priority, number>;
   /** Пиковые окна нагрузки. */
   peakWindows?: readonly PeakWindow[];
   /**
@@ -35,12 +37,13 @@ const DEFAULT_PEAKS: readonly PeakWindow[] = [
   { startHour: 12, endHour: 13, factor: 3.0 },
   { startHour: 17, endHour: 18, factor: 3.0 },
 ];
+const DEFAULT_PRIORITY_SHARES: Record<Priority, number> = { urgent: .05, normal: .8, scheduled: .15 };
 
 export function generateArrivals(
   config: ArrivalGeneratorConfig,
   rng: Rng,
 ): Vehicle[] {
-  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares, peakWindows = DEFAULT_PEAKS, sources = [] } = config;
+  const { lambdaBasePerMin, horizonMin, gridSizeMeters, typeShares, priorityShares = DEFAULT_PRIORITY_SHARES, peakWindows = DEFAULT_PEAKS, sources = [] } = config;
   const lambdaMax = lambdaBasePerMin * maxRateMultiplier(peakWindows);
   if (lambdaMax <= 0) return [];
 
@@ -52,7 +55,7 @@ export function generateArrivals(
     t += rng.exponential(lambdaMax);
     if (t >= horizonMin) break;
     if (rng.next() < arrivalRateAt(t, lambdaBasePerMin, peakWindows) / lambdaMax) {
-      arrivals.push(createVehicle(t, gridSizeMeters, typeShares, sources, rng, arrivals.length));
+      arrivals.push(createVehicle(t, gridSizeMeters, typeShares, priorityShares, sources, rng, arrivals.length));
     }
   }
 
@@ -90,6 +93,7 @@ function createVehicle(
   t: SimTime,
   gridSize: number,
   shares: Record<VehicleType, number>,
+  priorityShares: Record<Priority, number>,
   sources: readonly VehicleSource[],
   rng: Rng,
   index: number,
@@ -98,7 +102,7 @@ function createVehicle(
   return {
     id: `V${index.toString().padStart(5, '0')}`,
     type: sampleType(shares, rng),
-    priority: samplePriority(rng),
+    priority: samplePriority(priorityShares, rng),
     arrivalTime: t,
     location: source ? source.coordinates : [rng.next() * gridSize, rng.next() * gridSize],
     source,
@@ -115,9 +119,9 @@ function sampleType(shares: Record<VehicleType, number>, rng: Rng): VehicleType 
   return 'bus';
 }
 
-function samplePriority(rng: Rng): 'urgent' | 'normal' | 'scheduled' {
+function samplePriority(shares: Record<Priority, number>, rng: Rng): Priority {
   const r = rng.next();
-  if (r < 0.05) return 'urgent';
-  if (r < 0.85) return 'normal';
+  if (r < shares.urgent) return 'urgent';
+  if (r < shares.urgent + shares.normal) return 'normal';
   return 'scheduled';
 }
