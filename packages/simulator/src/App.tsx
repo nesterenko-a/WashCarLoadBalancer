@@ -69,7 +69,7 @@ export default function App() {
   const activeDecision = useMemo(() => active ? [...active.decisions].reverse().find(item => item.time <= time) : undefined, [active, time]);
   const inspectedRequest = selectedVehicleId ? active?.requests.find(item => item.id === selectedVehicleId) : undefined;
   const inspectedDecision = inspectedRequest ? active?.decisions.find(item => item.requestId === inspectedRequest.id) : activeDecision;
-  const focusRequest = inspectedRequest ?? (activeDecision ? active?.requests.find(item => item.id === activeDecision.requestId) : undefined);
+  const focusRequest = inspectedRequest;
   const start = () => { const next = {} as Record<Algorithm, SimulationResult>; algorithms.forEach(a => next[a] = run(seed, a, lambda, horizon, peaks, washes)); setSingleRun(null); setResults(next); setTime(0); setPlaying(true); };
   const startSelected = () => { setResults(null); setSingleRun({ algorithm: selected, result: run(seed, selected, lambda, horizon, peaks, washes) }); setSelectedVehicleId(null); setTime(0); setPlaying(true); };
   const editingWash = washes.find(wash => wash.id === editingWashId);
