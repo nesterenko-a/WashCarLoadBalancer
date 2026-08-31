@@ -27,6 +27,8 @@ export interface DecisionRecord {
   scores: Record<string, number>;
   /** Score выбранной мойки: удобен для отображения объяснения решения в UI. */
   chosenScore: number | null;
+  /** Для Power of d: кандидаты, попавшие в случайную подвыборку. */
+  consideredWashIds?: string[];
   /** Снимок расчёта по каждому кандидату для объяснения решения без пересчёта в UI. */
   candidates: DecisionCandidateRecord[];
   rejectedReason: string;
@@ -95,6 +97,7 @@ export class Dispatcher {
       chosenWash: decision.washId,
       scores: decision.scores,
       chosenScore: decision.washId === null ? null : decision.scores[decision.washId] ?? null,
+      consideredWashIds: decision.consideredWashIds,
       candidates: candidates.map(candidate => ({
         washId: candidate.washId,
         travelTimeMin: candidate.travelTimeMin,

@@ -215,8 +215,38 @@ describe('Алгоритмы', () => {
     expect(() => createAlgorithm('unknown')).toThrow();
   });
 
+  it('Power of Two детерминированно выбирает из двух случайных кандидатов', () => {
+    const ctx = {
+      request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan' as const, priority: 'normal' as const, arrivalTime: 0, location: [0, 0] as [number, number] }, targetWash: null, algorithm: 'power_of_two', assignedAt: 0 },
+      candidates: [
+        { washId: 'a', queueLength: 4, busyPosts: 1, totalPosts: 2, inTransit: 0, serviceTimeMin: WASHES[0]!.serviceTimeMin, rho: .5, expectedWaitMin: 3, travelTimeMin: 2 },
+        { washId: 'b', queueLength: 2, busyPosts: 1, totalPosts: 2, inTransit: 0, serviceTimeMin: WASHES[1]!.serviceTimeMin, rho: .5, expectedWaitMin: 3, travelTimeMin: 2 },
+        { washId: 'c', queueLength: 0, busyPosts: 1, totalPosts: 2, inTransit: 0, serviceTimeMin: WASHES[1]!.serviceTimeMin, rho: .5, expectedWaitMin: 3, travelTimeMin: 2 },
+      ],
+      now: 0,
+      rng: mulberry32(42),
+    };
+    const decision = createAlgorithm('power_of_two').decide(ctx);
+    expect(decision.consideredWashIds).toHaveLength(2);
+    expect(decision.consideredWashIds).toContain(decision.washId);
+    expect(createAlgorithm('power_of_two').decide({ ...ctx, rng: mulberry32(42) })).toEqual(decision);
+  });
+
+  it('State-Aware Score штрафует перегруженную мойку', () => {
+    const decision = createAlgorithm('state_aware').decide({
+      request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan', priority: 'normal', arrivalTime: 0, location: [0, 0] }, targetWash: null, algorithm: 'state_aware', assignedAt: 0 },
+      candidates: [
+        { washId: 'overloaded', queueLength: 1, busyPosts: 2, totalPosts: 2, inTransit: 1, serviceTimeMin: WASHES[0]!.serviceTimeMin, rho: .98, expectedWaitMin: 12, travelTimeMin: 1 },
+        { washId: 'stable', queueLength: 1, busyPosts: 1, totalPosts: 2, inTransit: 0, serviceTimeMin: WASHES[1]!.serviceTimeMin, rho: .5, expectedWaitMin: 2, travelTimeMin: 4 },
+      ],
+      now: 0,
+      rng: mulberry32(1),
+    });
+    expect(decision.washId).toBe('stable');
+  });
+
   it('алгоритмы возвращают null при пустом списке кандидатов', () => {
-    for (const name of ['random', 'jsq', 'weighted_jsq']) {
+    for (const name of ['random', 'jsq', 'weighted_jsq', 'power_of_two', 'state_aware']) {
       const algo = createAlgorithm(name);
       const decision = algo.decide({
         request: { id: 'R1', vehicle: { id: 'V1', type: 'sedan', priority: 'normal', arrivalTime: 0, location: [0, 0] }, targetWash: null, algorithm: name, assignedAt: 0 },

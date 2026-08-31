@@ -28,6 +28,8 @@ export interface DecisionContext {
 export interface Decision {
   washId: string | null; // null — отказ (нет кандидатов)
   scores: Record<string, number>; // score по каждому кандидату — для журнала F-09
+  /** Подмножество кандидатов, реально рассмотренное Power of d Choices. */
+  consideredWashIds?: string[];
 }
 
 export interface LoadBalancingAlgorithm {
